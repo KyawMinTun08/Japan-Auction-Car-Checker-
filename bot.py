@@ -264,7 +264,7 @@ async def gemini_ocr_chassis(file_bytes: bytes) -> str:
 
         payload = {
             "contents": [{
-                "parts": [Japan auction car photo. Find the chassis number written with marker pen on windshield. Format examples: NT32-024640, DNT31-209100, GRS201-0006860, S510P-0147424, GP1-1011906. Return ONLY the chassis number. Nothing else.
+                {"text": "Japan auction car photo. Find the chassis number written with marker pen on windshield. Format examples: NT32-024640, DNT31-209100, GRS201-0006860, S510P-0147424, GP1-1011906. Return ONLY the chassis number. Nothing else."}, GRS201-0006860, S510P-0147424, GP1-1011906. Return ONLY the chassis number. Nothing else.
                     {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
                 ]
             }]
