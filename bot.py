@@ -274,10 +274,15 @@ async def gemini_ocr_chassis(file_bytes: bytes) -> str:
         data = resp.json()
         text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-        match = re.search(r'[A-Z0-9]{2,5}[-\s]?\d{6,10}', text)
-        if match:
-            return match.group().replace(' ', '-')
-        return text[:20] if text else ""
+        patterns = [
+            r'\b[A-Z]{1,5}\d{1,4}[A-Z]{0,3}-\d{4,7}\b',
+            r'\b[A-Z0-9]{4,20}-\d{4,7}\b',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text.upper())
+            if match:
+                return match.group()
+        return ""
     except Exception as e:
         logger.error(f"Gemini OCR error: {e}")
         return ""
