@@ -407,7 +407,7 @@ async def gemini_ocr_auction_list(file_bytes: bytes) -> list:
             return []
 
         img_b64 = base64.b64encode(file_bytes).decode()
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
         payload = {
             "contents": [{
@@ -461,7 +461,7 @@ async def gemini_ocr_chassis(file_bytes: bytes) -> str:
             import base64
 
             img_b64 = base64.b64encode(file_bytes).decode()
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
             payload = {
                 "contents": [{
