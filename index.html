@@ -3,145 +3,414 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Japan Auction Car Checker</title>
+<title>JAN JAPAN Auction Car Checker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+Myanmar:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+:root {
+  --bg: #060d1a;
+  --surface: #0d1f35;
+  --surface2: #112240;
+  --border: #1e3a5f;
+  --gold: #f0b429;
+  --gold2: #ffd166;
+  --blue: #2563eb;
+  --blue2: #3b82f6;
+  --green: #10b981;
+  --red: #ef4444;
+  --text: #ccd6f6;
+  --muted: #5d7a9e;
+  --white: #e6f1ff;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans Myanmar', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  background-image: radial-gradient(ellipse at 20% 0%, #0a2a4a33 0%, transparent 60%),
+                    radial-gradient(ellipse at 80% 100%, #1a0a2e22 0%, transparent 60%);
+}
 
-  /* PASSWORD OVERLAY */
-  #pw-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.95); z-index:9999; display:flex; align-items:center; justify-content:center; }
-  .pw-box { background:#1e293b; border:1px solid #334155; border-radius:16px; padding:40px 32px; text-align:center; width:320px; }
-  .pw-box h2 { color:#FFD700; font-size:1.4rem; margin-bottom:8px; }
-  .pw-box p { color:#94a3b8; font-size:.85rem; margin-bottom:24px; }
-  .pw-box input { width:100%; padding:12px; border-radius:8px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; font-size:1rem; text-align:center; letter-spacing:2px; margin-bottom:12px; }
-  .pw-box button { width:100%; padding:12px; border-radius:8px; border:none; background:#2563eb; color:#fff; font-weight:700; font-size:1rem; cursor:pointer; }
-  .pw-box button:hover { background:#1d4ed8; }
-  .pw-err { color:#f87171; font-size:.85rem; margin-top:8px; min-height:20px; }
+/* OVERLAY */
+#pw-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(6,13,26,0.97);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+}
+.pw-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--gold);
+  border-radius: 16px;
+  padding: 40px 32px;
+  text-align: center;
+  width: 320px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.pw-box h2 { color: var(--gold); font-size: 1.3rem; margin-bottom: 6px; font-family: 'Space Mono', monospace; }
+.pw-box p { color: var(--muted); font-size: .85rem; margin-bottom: 24px; line-height: 1.6; }
+.pw-box input {
+  width: 100%; padding: 12px 16px;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--white);
+  font-size: 1rem; text-align: center; letter-spacing: 3px;
+  margin-bottom: 12px; outline: none;
+  transition: border-color .2s;
+}
+.pw-box input:focus { border-color: var(--gold); }
+.pw-btn {
+  width: 100%; padding: 12px; border-radius: 8px; border: none;
+  background: linear-gradient(135deg, var(--gold), #e09000);
+  color: #060d1a; font-weight: 700; font-size: 1rem; cursor: pointer;
+  transition: opacity .2s;
+}
+.pw-btn:hover { opacity: .9; }
+.pw-err { color: var(--red); font-size: .82rem; margin-top: 8px; min-height: 18px; }
+.pw-back {
+  margin-top: 10px; background: var(--surface2);
+  width: 100%; padding: 10px; border-radius: 8px;
+  border: 1px solid var(--border); color: var(--muted);
+  cursor: pointer; font-size: .85rem; transition: color .2s;
+}
+.pw-back:hover { color: var(--text); }
 
-  .header { background: linear-gradient(135deg, #1B3A6B, #2563eb); padding: 18px 24px; display: flex; align-items: center; gap: 16px; }
-  .header h1 { font-size: 1.4rem; color: #FFD700; font-weight: 800; letter-spacing: 1px; }
-  .header p  { font-size: 0.8rem; color: #93c5fd; margin-top: 2px; }
-  .badge { background: #FFD700; color: #1B3A6B; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; margin-left: auto; white-space: nowrap; cursor:pointer; }
+/* HEADER */
+.header {
+  background: linear-gradient(135deg, #071428, #0d2347);
+  padding: 16px 24px;
+  display: flex; align-items: center; gap: 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.header-logo { font-size: 1.5rem; }
+.header-title h1 {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.1rem; color: var(--gold);
+  letter-spacing: 2px; font-weight: 700;
+}
+.header-title p { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.refresh-badge {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--muted); padding: 6px 14px;
+  border-radius: 20px; font-size: .78rem; cursor: pointer;
+  transition: all .2s; white-space: nowrap;
+}
+.refresh-badge:hover { color: var(--gold); border-color: var(--gold); }
+.login-badge {
+  background: linear-gradient(135deg, var(--gold), #e09000);
+  color: #060d1a; padding: 6px 14px;
+  border-radius: 20px; font-size: .78rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
 
-  .main { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
+/* MAIN */
+.main { max-width: 1300px; margin: 0 auto; padding: 20px 16px; }
 
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-  .stat-card { background: #1e293b; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #334155; }
-  .stat-card .num { font-size: 1.8rem; font-weight: 800; color: #FFD700; }
-  .stat-card .lbl { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+/* STATS */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 12px;
+  text-align: center; position: relative; overflow: hidden;
+  transition: transform .2s;
+}
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+.stat-card:hover { transform: translateY(-2px); }
+.stat-num { font-size: 1.8rem; font-weight: 700; color: var(--gold); font-family: 'Space Mono', monospace; }
+.stat-lbl { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
 
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-  .tab { padding: 8px 20px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all .2s; }
-  .tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+/* TABS */
+.tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+.tab {
+  padding: 9px 18px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted);
+  cursor: pointer; font-size: .83rem; font-weight: 600;
+  transition: all .2s; white-space: nowrap;
+}
+.tab:hover { color: var(--text); border-color: var(--muted); }
+.tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
 
-  .card { background: #1e293b; border-radius: 14px; padding: 20px; border: 1px solid #334155; margin-bottom: 20px; }
-  .card h2 { font-size: 1rem; font-weight: 700; color: #FFD700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+/* CARD */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: .95rem; font-weight: 700; color: var(--gold);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+  font-family: 'Space Mono', monospace;
+}
 
-  .search-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-  .search-row input, .search-row select { flex: 1; min-width: 140px; padding: 10px 14px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 0.9rem; }
-  .search-row input::placeholder { color: #475569; }
-  .btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
-  .btn-blue { background: #2563eb; color: #fff; }
-  .btn-green { background: #16a34a; color: #fff; }
-  .btn-yellow { background: #ca8a04; color: #fff; }
+/* FILTER ROW */
+.filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.filter-row input, .filter-row select {
+  flex: 1; min-width: 130px; padding: 9px 12px;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: .85rem;
+  outline: none; transition: border-color .2s;
+}
+.filter-row input:focus, .filter-row select:focus { border-color: var(--blue2); }
+.filter-row input::placeholder { color: var(--muted); }
+.filter-row select option { background: var(--bg); }
 
-  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-  th { background: #1B3A6B; color: #FFD700; padding: 10px 8px; text-align: center; font-weight: 700; position: sticky; top: 0; }
-  td { padding: 9px 8px; text-align: center; border-bottom: 1px solid #1e293b; }
-  tr:hover td { background: #0f172a; }
-  tr:nth-child(even) td { background: #162032; }
-  .pill { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
-  .pill-green { background: #14532d; color: #4ade80; }
-  .pill-gray  { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
-  .price-up   { color: #4ade80; font-weight: 700; }
-  .price-down { color: #f87171; font-weight: 700; }
-  .price-same { color: #94a3b8; }
+/* TABLE */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+th {
+  background: #071c36; color: var(--gold);
+  padding: 10px 8px; text-align: center;
+  font-weight: 700; white-space: nowrap;
+  font-family: 'Space Mono', monospace; font-size: .75rem;
+  position: sticky; top: 0;
+}
+td { padding: 9px 8px; text-align: center; border-bottom: 1px solid #0d1f3533; }
+tr:hover td { background: #0a192f; }
+tr:nth-child(even) td { background: #0b1c31; }
 
-  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .chart-box { background: #0f172a; border-radius: 10px; padding: 16px; }
-  canvas { max-height: 280px; }
+/* THUMBNAIL */
+.thumb {
+  width: 42px; height: 34px; object-fit: cover;
+  border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--border);
+  transition: transform .2s;
+}
+.thumb:hover { transform: scale(1.1); }
+.no-img { color: var(--muted); font-size: .7rem; }
 
-  .loading { text-align:center; padding:40px; color:#94a3b8; }
-  .loading .spin { font-size:2rem; animation: spin 1s linear infinite; display:inline-block; }
-  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+/* PILLS */
+.pill { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700; }
+.pill-green { background: #0a2a1a; color: #4ade80; border: 1px solid #10b98144; }
+.pill-gray  { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.price-up   { color: #4ade80; font-weight: 700; }
+.price-down { color: var(--red); font-weight: 700; }
+.price-same { color: var(--muted); }
+.price-gold { color: var(--gold); font-weight: 700; font-family: 'Space Mono', monospace; }
 
-  .refresh-btn { float:right; background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:.8rem; }
-  .refresh-btn:hover { color:#e2e8f0; border-color:#94a3b8; }
-  .last-update { font-size:.75rem; color:#475569; margin-top:8px; text-align:right; }
+/* MODAL */
+#modal-overlay {
+  position: fixed; inset: 0; z-index: 8000;
+  background: rgba(6,13,26,0.92);
+  display: none; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+  padding: 20px;
+}
+#modal-overlay.show { display: flex; }
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 100%; max-width: 500px;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+  animation: slideUp .25s ease;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.modal-img { width: 100%; height: 220px; object-fit: cover; border-radius: 16px 16px 0 0; }
+.modal-img-placeholder {
+  width: 100%; height: 160px; border-radius: 16px 16px 0 0;
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 3rem;
+}
+.modal-body { padding: 20px; }
+.modal-title { font-family: 'Space Mono', monospace; color: var(--gold); font-size: 1rem; margin-bottom: 4px; }
+.modal-sub { color: var(--muted); font-size: .8rem; margin-bottom: 16px; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.modal-field label { font-size: .7rem; color: var(--muted); display: block; margin-bottom: 2px; }
+.modal-field span { font-size: .88rem; color: var(--white); font-weight: 600; }
+.modal-close {
+  width: 100%; padding: 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--muted); cursor: pointer; font-size: .85rem;
+  transition: color .2s;
+}
+.modal-close:hover { color: var(--text); }
+.modal-price-history { margin-bottom: 16px; }
+.modal-price-history h4 { font-size: .78rem; color: var(--muted); margin-bottom: 8px; font-family: 'Space Mono', monospace; }
+.price-hist-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; border-bottom: 1px solid var(--border);
+  font-size: .8rem;
+}
+.price-hist-row:last-child { border-bottom: none; }
 
-  @media(max-width: 700px) {
-    .stats { grid-template-columns: repeat(2, 1fr); }
-    .chart-grid { grid-template-columns: 1fr; }
-  }
+/* CHARTS */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chart-box {
+  background: var(--bg); border-radius: 10px; padding: 16px;
+  border: 1px solid var(--border);
+}
+.chart-label { color: var(--muted); font-size: .75rem; margin-bottom: 10px; font-family: 'Space Mono', monospace; }
+canvas { max-height: 260px; }
+
+/* ANALYSIS */
+.analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.analysis-box {
+  background: var(--bg); border-radius: 10px; padding: 16px;
+  border: 1px solid var(--border);
+}
+.analysis-box h3 { font-size: .78rem; color: var(--muted); margin-bottom: 12px; font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+.rank-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid #0d1f3544;
+  font-size: .8rem;
+}
+.rank-row:last-child { border-bottom: none; }
+.rank-num { font-family: 'Space Mono', monospace; color: var(--muted); font-size: .7rem; width: 18px; }
+.rank-bar-wrap { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.rank-bar { height: 100%; background: linear-gradient(90deg, var(--blue), var(--blue2)); border-radius: 3px; transition: width .8s ease; }
+.rank-count { font-family: 'Space Mono', monospace; color: var(--gold); font-size: .75rem; min-width: 30px; text-align: right; }
+
+.heatmap-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.heatmap-cell {
+  aspect-ratio: 1; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem; color: var(--muted); font-family: 'Space Mono', monospace;
+  cursor: default; transition: transform .1s;
+}
+.heatmap-cell:hover { transform: scale(1.15); }
+.day-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+.day-label { font-size: .62rem; color: var(--muted); text-align: center; font-family: 'Space Mono', monospace; }
+
+/* LOADING */
+.loading { text-align: center; padding: 40px; color: var(--muted); }
+.spin { display: inline-block; animation: spin 1s linear infinite; font-size: 1.5rem; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.last-update { font-size: .72rem; color: var(--muted); text-align: right; margin-top: 8px; }
+.empty-row td { color: var(--muted); padding: 24px; }
+
+/* PAGINATION */
+.pagination { display: flex; justify-content: center; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.page-btn {
+  padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--muted); cursor: pointer;
+  font-size: .78rem; font-family: 'Space Mono', monospace;
+  transition: all .2s;
+}
+.page-btn:hover, .page-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+@media (max-width: 700px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .chart-grid, .analysis-grid { grid-template-columns: 1fr; }
+  .header-title h1 { font-size: .9rem; letter-spacing: 1px; }
+  .modal-grid { grid-template-columns: 1fr 1fr; }
+}
 </style>
 </head>
 <body>
 
-<!-- PASSWORD OVERLAY (for chart/history tabs only) -->
+<!-- PASSWORD OVERLAY -->
 <div id="pw-overlay" style="display:none;">
   <div class="pw-box">
-    <h2>🔐 Japan Auction</h2>
-    <p>ဈေးကြည့် / မှတ်တမ်း ကြည့်ရန်<br>Password ထည့်ပါ</p>
-    <input type="password" id="pw-input" placeholder="••••••••••••" onkeydown="if(event.key==='Enter')checkPw()">
-    <button onclick="checkPw()">🔓 ဝင်ရောက်မည်</button>
+    <h2>🔐 JAN JAPAN</h2>
+    <p>ဈေးကြည့် / မှတ်တမ်း / Analysis<br>Password ထည့်ပါ</p>
+    <input type="password" id="pw-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkPw()">
+    <button class="pw-btn" onclick="checkPw()">🔓 ဝင်ရောက်မည်</button>
     <div class="pw-err" id="pw-err"></div>
-    <button onclick="document.getElementById('pw-overlay').style.display='none'" style="margin-top:10px;background:#334155;width:100%;padding:10px;border-radius:8px;border:none;color:#94a3b8;cursor:pointer;">ပြန်သွား</button>
+    <button class="pw-back" onclick="document.getElementById('pw-overlay').style.display='none'">← ပြန်သွား</button>
   </div>
 </div>
 
+<!-- IMAGE MODAL -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-box" id="modal-box">
+    <div id="modal-img-wrap"></div>
+    <div class="modal-body">
+      <div class="modal-title" id="modal-chassis"></div>
+      <div class="modal-sub" id="modal-model"></div>
+      <div class="modal-grid" id="modal-fields"></div>
+      <div class="modal-price-history" id="modal-history-wrap"></div>
+      <button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('show')">✕ ပိတ်မည်</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
 <div class="header">
-  <div>
-    <h1>🚗 JAPAN AUCTION CAR CHECKER</h1>
+  <div class="header-logo">🚗</div>
+  <div class="header-title">
+    <h1>JAN JAPAN AUCTION</h1>
     <p>Maesot Freezone — ဈေးနှုန်း Tracker</p>
   </div>
-  <div class="badge" onclick="refreshData()" title="Refresh">🔄 Refresh</div>
+  <div class="header-right">
+    <div class="refresh-badge" onclick="refreshData()">🔄 Refresh</div>
+    <div class="login-badge" id="login-badge" onclick="showLoginOrLogout()">🔐 Login</div>
+  </div>
 </div>
 
 <div class="main">
 
-  <!-- Stats -->
+  <!-- STATS -->
   <div class="stats">
-    <div class="stat-card"><div class="num" id="s-total">—</div><div class="lbl">ကားစုစုပေါင်း</div></div>
-    <div class="stat-card"><div class="num" id="s-priced">—</div><div class="lbl">ဈေးရပြီး</div></div>
-    <div class="stat-card"><div class="num" id="s-entries">—</div><div class="lbl">History မှတ်တမ်း</div></div>
-    <div class="stat-card"><div class="num" id="s-models">—</div><div class="lbl">Model အမျိုးအစား</div></div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-total">—</div>
+      <div class="stat-lbl">ကားစုစုပေါင်း</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-priced">—</div>
+      <div class="stat-lbl">ဈေးရပြီး</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-entries">—</div>
+      <div class="stat-lbl">History မှတ်တမ်း</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-models">—</div>
+      <div class="stat-lbl">Model အမျိုးအစား</div>
+    </div>
   </div>
 
-  <!-- Tabs -->
+  <!-- TABS -->
   <div class="tabs">
-    <div class="tab active" onclick="showTab('search')">🚗 ကားတရာင်း</div>
+    <div class="tab active" onclick="showTab('list')">🚗 Car List</div>
     <div class="tab" onclick="showTab('chart')">📈 ဈေးကြည့်</div>
     <div class="tab" onclick="showTab('history')">📋 မှတ်တမ်း</div>
+    <div class="tab" onclick="showTab('analysis')">📊 Analysis</div>
   </div>
 
-  <!-- TAB: SEARCH -->
-  <div id="tab-search">
+  <!-- TAB: CAR LIST -->
+  <div id="tab-list">
     <div class="card">
-      <h2>🚗 ကားတရာင်း
-        <button class="refresh-btn" onclick="refreshData()">🔄 ပြန်ဆွဲ</button>
-      </h2>
-      <div class="search-row">
-        <input type="text" id="q-chassis" placeholder="Chassis နံပါတ် (e.g. NT32-517618)" oninput="doSearch()">
-        <input type="text" id="q-model" placeholder="Model (e.g. X-TRAIL, WISH)" oninput="doSearch()">
-        <select id="q-year" onchange="doSearch()">
-          <option value="">Year အားလုံး</option>
+      <div class="card-title">🚗 Car List
+        <span style="margin-left:auto;font-size:.72rem;color:var(--muted);font-family:sans-serif;font-weight:400;" id="list-count"></span>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="q-chassis" placeholder="Chassis နံပါတ်..." oninput="doSearch()">
+        <input type="text" id="q-model" placeholder="Model (X-TRAIL, VOXY...)" oninput="doSearch()">
+        <select id="q-model-sel" onchange="doSearch()">
+          <option value="">Model အားလုံး</option>
         </select>
       </div>
-      <div id="search-loading" class="loading" style="display:none;"><span class="spin">⏳</span><br>Data ဆွဲနေသည်...</div>
-      <div style="overflow-x:auto;">
+      <div id="list-loading" class="loading" style="display:none;"><span class="spin">⏳</span><br>Data ဆွဲနေသည်...</div>
+      <div class="tbl-wrap">
         <table>
           <thead>
             <tr>
-              <th>Chassis</th><th>Model</th><th>Color</th><th>Year</th>
-              <th id="th-price" style="display:none;">Latest Price (THB)</th>
+              <th>ပုံ</th>
+              <th>Chassis</th>
+              <th>Model</th>
+              <th>Color</th>
+              <th>Year</th>
+              <th id="th-price" style="display:none;">Latest Price</th>
               <th id="th-change" style="display:none;">Change</th>
               <th id="th-status" style="display:none;">Status</th>
             </tr>
           </thead>
-          <tbody id="search-tbody"></tbody>
+          <tbody id="list-tbody"></tbody>
         </table>
       </div>
+      <div class="pagination" id="list-pages"></div>
       <div class="last-update" id="last-update"></div>
     </div>
   </div>
@@ -149,22 +418,19 @@
   <!-- TAB: CHART -->
   <div id="tab-chart" style="display:none;">
     <div class="card">
-      <h2>📈 ဈေးနှုန်း Chart</h2>
-      <div class="search-row" style="margin-bottom:16px;">
+      <div class="card-title">📈 ဈေးနှုန်း Candlestick Chart</div>
+      <div class="filter-row" style="margin-bottom:16px;">
         <select id="chart-model" onchange="updateCharts()">
           <option value="">— Model ရွေးပါ —</option>
-        </select>
-        <select id="chart-year" onchange="updateCharts()">
-          <option value="">Year အားလုံး</option>
         </select>
       </div>
       <div class="chart-grid">
         <div class="chart-box">
-          <p style="color:#94a3b8;font-size:.8rem;margin-bottom:8px;">Chassis ခွဲ — ဈေးနှုန်းတစ်ကြောင်းချင်း</p>
-          <canvas id="lineChart"></canvas>
+          <div class="chart-label">📊 Chassis အလိုက် OHLC (Open / High / Low / Close)</div>
+          <canvas id="candleChart"></canvas>
         </div>
         <div class="chart-box">
-          <p style="color:#94a3b8;font-size:.8rem;margin-bottom:8px;">Model ပျမ်းမျှဈေး (တစ်လချင်း)</p>
+          <div class="chart-label">📅 လစဉ် ပျမ်းမျှ ဈေး (THB)</div>
           <canvas id="avgChart"></canvas>
         </div>
       </div>
@@ -174,43 +440,95 @@
   <!-- TAB: HISTORY -->
   <div id="tab-history" style="display:none;">
     <div class="card">
-      <h2>📋 ဈေးနှုန်း မှတ်တမ်း</h2>
-      <div class="search-row">
-        <input type="text" id="h-filter" placeholder="Model/Chassis ဖြင့် စစ်..." oninput="renderHistory()">
+      <div class="card-title">📋 ဈေးနှုန်း မှတ်တမ်း</div>
+      <div class="filter-row">
+        <input type="text" id="h-filter" placeholder="Model / Chassis ဖြင့် စစ်..." oninput="renderHistory(1)">
+        <select id="h-model" onchange="renderHistory(1)">
+          <option value="">Model အားလုံး</option>
+        </select>
+        <input type="date" id="h-date-from" onchange="renderHistory(1)" title="မှ">
+        <input type="date" id="h-date-to" onchange="renderHistory(1)" title="ထိ">
       </div>
-      <div style="overflow-x:auto;">
+      <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>#</th><th>Date</th><th>Chassis</th><th>Model</th><th>Color</th><th>Year</th><th>Price (THB)</th><th>Location</th><th>Added By</th></tr>
+            <tr><th>#</th><th>ပုံ</th><th>Date</th><th>Chassis</th><th>Model</th><th>Color</th><th>Year</th><th>Price (THB)</th><th>Added By</th></tr>
           </thead>
           <tbody id="history-tbody"></tbody>
         </table>
       </div>
+      <div class="pagination" id="history-pages"></div>
     </div>
   </div>
 
-</div>
+  <!-- TAB: ANALYSIS -->
+  <div id="tab-analysis" style="display:none;">
+    <div class="card">
+      <div class="card-title">📊 Data Analysis</div>
+
+      <!-- Summary boxes -->
+      <div class="analysis-grid" style="margin-bottom:16px;">
+        <div class="analysis-box">
+          <h3>🏆 Top 10 Model အများဆုံးရောင်း</h3>
+          <div id="top-models"></div>
+        </div>
+        <div class="analysis-box">
+          <h3>💰 Model ပျမ်းမျှဈေး (Price ရှိတာ)</h3>
+          <div id="avg-by-model"></div>
+        </div>
+      </div>
+
+      <div class="analysis-grid" style="margin-bottom:16px;">
+        <div class="analysis-box">
+          <h3>📅 နေ့အလိုက် ဘယ်ရက် အများဆုံး</h3>
+          <div class="day-labels" id="day-labels"></div>
+          <div class="heatmap-grid" id="day-heatmap"></div>
+        </div>
+        <div class="analysis-box">
+          <h3>📆 လအလိုက် ကားဝင်ရောက်မှု</h3>
+          <canvas id="monthlyChart" style="max-height:180px;"></canvas>
+        </div>
+      </div>
+
+      <div class="analysis-grid">
+        <div class="analysis-box">
+          <h3>🔝 အမြင့်ဆုံးဈေး ကားများ</h3>
+          <div id="top-price"></div>
+        </div>
+        <div class="analysis-box">
+          <h3>📉 Model Price Range</h3>
+          <div id="price-range"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
 
 <script>
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
 // CONFIG
-// ══════════════════════════════════════════════
-const SHEET_ID  = '1ZRw9xUS2pqZe5rJdmBtsX6yS7hAc65BHDO6K3zG1mpY';
-const SHEET_NAME = 'Sheet1';
-const PASSWORD  = 'KMTAuction#26';
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+// ═══════════════════════════════════
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTFlipjv-TmmW1SG-3e3F3HXMk7eF1B4Y037L6d_-ns8OHg5Qm6cu3nQG1xEfvYkjbZWCbHpU9raGYN/pub?gid=0&single=true&output=csv';
+const PASSWORD = 'KMTAuction#26';
+const PAGE_SIZE = 50;
 
-// ══════════════════════════════════════════════
-// PASSWORD
-// ══════════════════════════════════════════════
+let allData = [];
 let isLoggedIn = false;
+let pendingTab = null;
+let candleChartObj = null, avgChartObj = null, monthlyChartObj = null;
+let listPage = 1, histPage = 1;
 
+// ═══════════════════════════════════
+// PASSWORD
+// ═══════════════════════════════════
 function checkPw() {
-  const val = document.getElementById('pw-input').value;
-  if (val === PASSWORD) {
+  if (document.getElementById('pw-input').value === PASSWORD) {
     isLoggedIn = true;
     document.getElementById('pw-overlay').style.display = 'none';
-    doSearch(); // refresh search to show prices
+    document.getElementById('login-badge').textContent = '🔓 Logout';
+    doSearch();
+    buildHistoryDropdown();
     if (pendingTab) { showTab(pendingTab); pendingTab = null; }
   } else {
     document.getElementById('pw-err').textContent = '❌ Password မှားနေသည်';
@@ -218,307 +536,458 @@ function checkPw() {
     setTimeout(() => document.getElementById('pw-err').textContent = '', 2000);
   }
 }
+function showLoginOrLogout() {
+  if (isLoggedIn) {
+    isLoggedIn = false;
+    document.getElementById('login-badge').textContent = '🔐 Login';
+    doSearch();
+    showTab('list');
+  } else {
+    pendingTab = null;
+    document.getElementById('pw-overlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('pw-input').focus(), 100);
+  }
+}
 
-// ══════════════════════════════════════════════
-// DATA
-// ══════════════════════════════════════════════
-let allData = [];    // all rows from sheet
-let lineChartObj = null, avgChartObj = null;
-
+// ═══════════════════════════════════
+// DATA — CSV
+// ═══════════════════════════════════
 async function loadData() {
-  document.getElementById('search-loading').style.display = 'block';
-  document.getElementById('search-tbody').innerHTML = '';
-
+  document.getElementById('list-loading').style.display = 'block';
   try {
-    const res  = await fetch(SHEET_URL + '&t=' + Date.now());
+    const res = await fetch(CSV_URL + '&t=' + Date.now());
     const text = await res.text();
-    // GViz response: google.visualization.Query.setResponse({...});
-    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
-    const rows = json.table.rows;
-    const cols = json.table.cols;
+    const rows = parseCSV(text);
+    if (rows.length < 2) throw new Error('Empty data');
 
-    // Map column names
-    const colIdx = {};
-    cols.forEach((c, i) => { colIdx[c.label.trim().toLowerCase()] = i; });
-
+    const header = rows[0].map(h => h.trim().toLowerCase());
     allData = [];
-    rows.forEach(row => {
-      const get = (name) => {
-        const i = colIdx[name];
-        if (i === undefined) return '';
-        const cell = row.c[i];
-        return cell && cell.v !== null ? String(cell.v).trim() : '';
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r[1] || !r[1].trim()) continue;
+      const get = (col) => {
+        const idx = header.indexOf(col);
+        return idx >= 0 ? (r[idx] || '').trim() : '';
       };
-      const dateRaw = get('date');
-      const chassis = get('chassis');
-      if (!chassis) return; // skip empty rows
-
+      let dateStr = get('date');
+      // Clean up Date(yyyy,m,d) format from Google Sheets
+      const dm = dateStr.match(/Date\((\d+),(\d+),(\d+)\)/);
+      if (dm) {
+        const y = dm[1], m = String(parseInt(dm[2])+1).padStart(2,'0'), d = String(dm[3]).padStart(2,'0');
+        dateStr = `${d}/${m}/${y}`;
+      }
       allData.push({
-        date:     dateRaw,
-        chassis:  chassis.toUpperCase(),
-        model:    get('model').toUpperCase(),
-        color:    get('color'),
-        year:     get('year'),
-        price:    parseInt(get('price')) || 0,
+        date: dateStr,
+        chassis: get('chassis').toUpperCase(),
+        model: get('model').toUpperCase() || 'UNKNOWN',
+        color: get('color') || '-',
+        year: parseInt(get('year')) || 0,
+        price: parseFloat(get('price')) || 0,
         location: get('location'),
-        addedBy:  get('added by'),
+        addedBy: get('added by'),
+        image_url: get('image url') || get('image_url') || ''
       });
-    });
+    }
 
-    // Sort by date ascending
     allData.sort((a, b) => parseDate(a.date) - parseDate(b.date));
-
     buildDropdowns();
     updateStats();
     doSearch();
-    renderHistory();
-
-    const now = new Date();
-    document.getElementById('last-update').textContent =
-      `နောက်ဆုံး update: ${now.toLocaleTimeString()}`;
-
-  } catch (e) {
-    document.getElementById('search-tbody').innerHTML =
-      `<tr><td colspan="7" style="color:#f87171;padding:20px;">❌ Sheet ဆွဲမရပါ — Sheet ကို Anyone with link မှာ Viewer ပေးထားပြီလား စစ်ပါ<br><small>${e.message}</small></td></tr>`;
+    buildHistoryDropdown();
+    document.getElementById('last-update').textContent = `နောက်ဆုံး update: ${new Date().toLocaleTimeString()}`;
+  } catch(e) {
+    document.getElementById('list-tbody').innerHTML =
+      `<tr class="empty-row"><td colspan="8" style="color:#ef4444;">❌ Data ဆွဲမရပါ: ${e.message}</td></tr>`;
     console.error(e);
   } finally {
-    document.getElementById('search-loading').style.display = 'none';
+    document.getElementById('list-loading').style.display = 'none';
   }
+}
+
+function parseCSV(text) {
+  const rows = [];
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    cols.push(cur);
+    rows.push(cols);
+  }
+  return rows;
 }
 
 function parseDate(str) {
   if (!str) return 0;
-  // Try DD/MM/YYYY
-  const parts = str.split('/');
-  if (parts.length === 3) {
-    return new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`).getTime();
-  }
+  const p = str.split('/');
+  if (p.length === 3) return new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`).getTime();
   return new Date(str).getTime() || 0;
 }
 
-function refreshData() {
-  allData = [];
-  document.getElementById('s-total').textContent = '—';
-  document.getElementById('s-priced').textContent = '—';
-  document.getElementById('s-entries').textContent = '—';
-  document.getElementById('s-models').textContent = '—';
-  loadData();
-}
+function refreshData() { allData = []; loadData(); }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
 // DROPDOWNS
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
 function buildDropdowns() {
-  const years  = [...new Set(allData.map(r => r.year).filter(Boolean))].sort((a,b) => b-a);
   const models = [...new Set(allData.map(r => r.model).filter(Boolean))].sort();
-
-  const qYear = document.getElementById('q-year');
-  qYear.innerHTML = '<option value="">Year အားလုံး</option>';
-  years.forEach(y => { const o = new Option(y, y); qYear.add(o); });
-
-  const chartYear = document.getElementById('chart-year');
-  chartYear.innerHTML = '<option value="">Year အားလုံး</option>';
-  years.forEach(y => { const o = new Option(y, y); chartYear.add(o); });
-
-  const chartModel = document.getElementById('chart-model');
-  chartModel.innerHTML = '<option value="">— Model ရွေးပါ —</option>';
-  models.forEach(m => { const o = new Option(m, m); chartModel.add(o); });
+  
+  ['q-model-sel','chart-model'].forEach(id => {
+    const el = document.getElementById(id);
+    const first = el.options[0].text;
+    el.innerHTML = `<option value="">${first}</option>`;
+    models.forEach(m => el.add(new Option(m, m)));
+  });
 }
 
-// ══════════════════════════════════════════════
+function buildHistoryDropdown() {
+  const models = [...new Set(allData.map(r => r.model))].sort();
+  const el = document.getElementById('h-model');
+  el.innerHTML = '<option value="">Model အားလုံး</option>';
+  models.forEach(m => el.add(new Option(m, m)));
+}
+
+// ═══════════════════════════════════
 // STATS
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
 function updateStats() {
-  // Unique chassis
-  const uniqueChassis = [...new Set(allData.map(r => r.chassis))];
-  // chassis with price > 0
+  const unique = [...new Set(allData.map(r => r.chassis))];
   const priced = [...new Set(allData.filter(r => r.price > 0).map(r => r.chassis))];
-  const models = [...new Set(allData.map(r => r.model).filter(Boolean))];
-
-  document.getElementById('s-total').textContent   = uniqueChassis.length;
-  document.getElementById('s-priced').textContent  = priced.length;
+  const models = [...new Set(allData.map(r => r.model))];
+  document.getElementById('s-total').textContent = unique.length;
+  document.getElementById('s-priced').textContent = priced.length;
   document.getElementById('s-entries').textContent = allData.length;
-  document.getElementById('s-models').textContent  = models.length;
+  document.getElementById('s-models').textContent = models.length;
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
 // TABS
-// ══════════════════════════════════════════════
-let pendingTab = null;
-
+// ═══════════════════════════════════
 function showTab(name) {
-  // chart and history require login
-  if ((name === 'chart' || name === 'history') && !isLoggedIn) {
+  if ((name === 'chart' || name === 'history' || name === 'analysis') && !isLoggedIn) {
     pendingTab = name;
     document.getElementById('pw-overlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('pw-input').focus(), 100);
     return;
   }
-  ['search','chart','history'].forEach(t => {
+  const tabs = ['list','chart','history','analysis'];
+  tabs.forEach(t => {
     document.getElementById('tab-'+t).style.display = t === name ? '' : 'none';
   });
   document.querySelectorAll('.tab').forEach((el, i) => {
-    el.classList.toggle('active', ['search','chart','history'][i] === name);
+    el.classList.toggle('active', tabs[i] === name);
   });
   if (name === 'chart') setTimeout(updateCharts, 100);
+  if (name === 'analysis') setTimeout(buildAnalysis, 100);
+  if (name === 'history') renderHistory(1);
 }
 
-// ══════════════════════════════════════════════
-// SEARCH
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
+// CAR LIST
+// ═══════════════════════════════════
 function doSearch() {
   const qc = document.getElementById('q-chassis').value.toUpperCase().trim();
   const qm = document.getElementById('q-model').value.toUpperCase().trim();
-  const qy = document.getElementById('q-year').value;
-  const tb = document.getElementById('search-tbody');
+  const qms = document.getElementById('q-model-sel').value;
 
-  // Show/hide price columns based on login
-  const showPrice = isLoggedIn;
-  document.getElementById('th-price').style.display  = showPrice ? '' : 'none';
-  document.getElementById('th-change').style.display = showPrice ? '' : 'none';
-  document.getElementById('th-status').style.display = showPrice ? '' : 'none';
+  document.getElementById('th-price').style.display = isLoggedIn ? '' : 'none';
+  document.getElementById('th-change').style.display = isLoggedIn ? '' : 'none';
+  document.getElementById('th-status').style.display = isLoggedIn ? '' : 'none';
 
-  const uniqueChassis = [...new Set(allData.map(r => r.chassis))];
-
-  const filtered = uniqueChassis.filter(ch => {
+  const unique = [...new Set(allData.map(r => r.chassis))];
+  const filtered = unique.filter(ch => {
     const rows = allData.filter(r => r.chassis === ch);
-    const first = rows[0];
+    const info = rows[0];
     return (!qc || ch.includes(qc)) &&
-           (!qm || first.model.includes(qm)) &&
-           (!qy || first.year == qy);
+           (!qm || info.model.includes(qm)) &&
+           (!qms || info.model === qms);
   });
 
-  tb.innerHTML = '';
+  document.getElementById('list-count').textContent = `${filtered.length} chassis`;
+  listPage = 1;
+  renderListPage(filtered);
+}
 
-  if (filtered.length === 0) {
-    tb.innerHTML = `<tr><td colspan="7" style="color:#475569;padding:20px;">မတွေ့ပါ</td></tr>`;
-    return;
+function renderListPage(filtered) {
+  const tb = document.getElementById('list-tbody');
+  const total = filtered.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  const start = (listPage - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+
+  tb.innerHTML = '';
+  if (!slice.length) {
+    tb.innerHTML = `<tr class="empty-row"><td colspan="8">မတွေ့ပါ</td></tr>`;
   }
 
-  filtered.forEach(ch => {
+  slice.forEach(ch => {
     const rows = allData.filter(r => r.chassis === ch).sort((a,b) => parseDate(a.date)-parseDate(b.date));
-    const withPrice = rows.filter(r => r.price > 0);
-    const latest = withPrice.length ? withPrice[withPrice.length-1] : null;
-    const prev   = withPrice.length > 1 ? withPrice[withPrice.length-2] : null;
+    const priced = rows.filter(r => r.price > 0);
+    const latest = priced.length ? priced[priced.length-1] : null;
+    const prev   = priced.length > 1 ? priced[priced.length-2] : null;
     const info   = rows[0];
+    const imgUrl = rows.map(r => r.image_url).filter(Boolean).pop() || '';
 
-    const price = latest ? latest.price : null;
+    const imgCell = imgUrl
+      ? `<td><img src="${imgUrl}" class="thumb" onclick="openModal('${ch}')" onerror="this.parentNode.innerHTML='<span class=no-img>—</span>'"></td>`
+      : `<td><span class="no-img">—</span></td>`;
+
     let diffHtml = '<span class="price-same">—</span>';
     if (latest && prev) {
       const d = latest.price - prev.price;
-      diffHtml = d > 0 ? `<span class="price-up">▲ ${fmt(d)}</span>` :
-                 d < 0 ? `<span class="price-down">▼ ${fmt(Math.abs(d))}</span>` :
-                 '<span class="price-same">—</span>';
+      diffHtml = d > 0 ? `<span class="price-up">▲${fmt(d)}</span>`
+               : d < 0 ? `<span class="price-down">▼${fmt(Math.abs(d))}</span>`
+               : '<span class="price-same">—</span>';
     }
-    const pill = price ?
-      '<span class="pill pill-green">ဈေးရပြီ</span>' :
-      '<span class="pill pill-gray">ဈေးမရသေး</span>';
+    const pill = latest
+      ? '<span class="pill pill-green">ဈေးရပြီ</span>'
+      : '<span class="pill pill-gray">ဈေးမရသေး</span>';
 
-    const priceCell  = showPrice ? `<td style="font-weight:700;color:#FFD700;display:table-cell;">${price ? fmt(price)+' ฿' : '—'}</td>` : '';
-    const changeCell = showPrice ? `<td style="display:table-cell;">${diffHtml}</td>` : '';
-    const statusCell = showPrice ? `<td>${pill}</td>` : '';
+    const priceC  = isLoggedIn ? `<td class="price-gold">${latest ? fmt(latest.price)+' ฿' : '—'}</td>` : '';
+    const changeC = isLoggedIn ? `<td>${diffHtml}</td>` : '';
+    const statusC = isLoggedIn ? `<td>${pill}</td>` : '';
 
-    tb.innerHTML += `<tr>
-      <td style="font-size:.75rem;color:#94a3b8">${ch}</td>
-      <td style="font-weight:700;color:#e2e8f0">${info.model}</td>
+    tb.innerHTML += `<tr style="cursor:pointer;" onclick="openModal('${ch}')">
+      ${imgCell}
+      <td style="font-size:.73rem;color:var(--muted);font-family:'Space Mono',monospace;">${ch}</td>
+      <td style="font-weight:700;color:var(--white);">${info.model}</td>
       <td>${info.color}</td>
       <td>${info.year || '—'}</td>
-      ${priceCell}
-      ${changeCell}
-      ${statusCell}
+      ${priceC}${changeC}${statusC}
     </tr>`;
   });
+
+  // Pagination
+  const pg = document.getElementById('list-pages');
+  pg.innerHTML = '';
+  for (let i = 1; i <= pages; i++) {
+    pg.innerHTML += `<button class="page-btn${i===listPage?' active':''}" onclick="listPage=${i};doSearch_page()">${i}</button>`;
+  }
+
+  // Store for pagination
+  window._listFiltered = filtered;
 }
 
-// ══════════════════════════════════════════════
-// HISTORY
-// ══════════════════════════════════════════════
-function renderHistory() {
-  const q  = (document.getElementById('h-filter').value || '').toUpperCase();
-  const tb = document.getElementById('history-tbody');
-  const sorted = [...allData].reverse();
-  tb.innerHTML = '';
-  sorted.filter(h => !q || h.chassis.includes(q) || h.model.includes(q)).forEach((h, i) => {
-    tb.innerHTML += `<tr>
-      <td style="color:#475569">${i+1}</td>
-      <td style="font-size:.8rem">${h.date}</td>
-      <td style="font-size:.75rem;color:#94a3b8">${h.chassis}</td>
-      <td style="font-weight:700">${h.model}</td>
-      <td>${h.color}</td>
-      <td>${h.year}</td>
-      <td style="font-weight:700;color:#FFD700">${h.price ? fmt(h.price)+' ฿' : '—'}</td>
-      <td style="font-size:.8rem;color:#475569">${h.location}</td>
-      <td style="font-size:.8rem;color:#475569">${h.addedBy}</td>
-    </tr>`;
-  });
-  if (!tb.innerHTML) {
-    tb.innerHTML = `<tr><td colspan="9" style="color:#475569;padding:20px;">မှတ်တမ်း မရှိသေး</td></tr>`;
+function doSearch_page() {
+  renderListPage(window._listFiltered || []);
+}
+
+// ═══════════════════════════════════
+// MODAL
+// ═══════════════════════════════════
+function openModal(chassis) {
+  const rows = allData.filter(r => r.chassis === chassis).sort((a,b) => parseDate(a.date)-parseDate(b.date));
+  if (!rows.length) return;
+  const info = rows[0];
+  const imgUrl = rows.map(r => r.image_url).filter(Boolean).pop() || '';
+  const priced = rows.filter(r => r.price > 0);
+  const latest = priced.length ? priced[priced.length-1] : null;
+
+  // Image
+  const imgWrap = document.getElementById('modal-img-wrap');
+  imgWrap.innerHTML = imgUrl
+    ? `<img src="${imgUrl}" class="modal-img" onerror="this.parentNode.innerHTML='<div class=modal-img-placeholder>🚗</div>'">`
+    : `<div class="modal-img-placeholder">🚗</div>`;
+
+  document.getElementById('modal-chassis').textContent = chassis;
+  document.getElementById('modal-model').textContent = `${info.model} • ${info.color} • ${info.year || '—'}`;
+
+  // Fields
+  document.getElementById('modal-fields').innerHTML = `
+    <div class="modal-field"><label>Model</label><span>${info.model}</span></div>
+    <div class="modal-field"><label>Color</label><span>${info.color}</span></div>
+    <div class="modal-field"><label>Year</label><span>${info.year || '—'}</span></div>
+    <div class="modal-field"><label>Location</label><span>${info.location || '—'}</span></div>
+    <div class="modal-field"><label>Added By</label><span>${info.addedBy || '—'}</span></div>
+    ${isLoggedIn && latest ? `<div class="modal-field"><label>Latest Price</label><span style="color:var(--gold);">${fmt(latest.price)} ฿</span></div>` : ''}
+  `;
+
+  // Price history
+  const histWrap = document.getElementById('modal-history-wrap');
+  if (isLoggedIn && priced.length) {
+    let html = '<h4>💰 Price History</h4>';
+    priced.slice().reverse().slice(0,5).forEach(r => {
+      html += `<div class="price-hist-row">
+        <span style="color:var(--muted);font-size:.75rem;">${r.date}</span>
+        <span class="price-gold">${fmt(r.price)} ฿</span>
+      </div>`;
+    });
+    histWrap.innerHTML = html;
+    histWrap.style.display = '';
+  } else {
+    histWrap.style.display = 'none';
+  }
+
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) {
+    document.getElementById('modal-overlay').classList.remove('show');
   }
 }
 
-// ══════════════════════════════════════════════
-// CHARTS
-// ══════════════════════════════════════════════
-const COLORS = ['#3b82f6','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4'];
+// ═══════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════
+function renderHistory(page) {
+  if (page) histPage = page;
+  const q  = (document.getElementById('h-filter').value || '').toUpperCase();
+  const qm = document.getElementById('h-model').value;
+  const df = document.getElementById('h-date-from').value;
+  const dt = document.getElementById('h-date-to').value;
 
+  let filtered = [...allData].reverse().filter(h => {
+    const matchText = !q || h.chassis.includes(q) || h.model.includes(q);
+    const matchModel = !qm || h.model === qm;
+    let matchDate = true;
+    if (df || dt) {
+      const d = parseDate(h.date);
+      if (df) matchDate = matchDate && d >= new Date(df).getTime();
+      if (dt) matchDate = matchDate && d <= new Date(dt).getTime() + 86400000;
+    }
+    return matchText && matchModel && matchDate;
+  });
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  const start = (histPage - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+
+  const tb = document.getElementById('history-tbody');
+  tb.innerHTML = '';
+  if (!slice.length) {
+    tb.innerHTML = `<tr class="empty-row"><td colspan="9">မှတ်တမ်း မရှိသေး</td></tr>`;
+  }
+  slice.forEach((h, i) => {
+    const imgUrl = h.image_url;
+    const imgCell = imgUrl
+      ? `<td><img src="${imgUrl}" class="thumb" onclick="openModal('${h.chassis}')" onerror="this.parentNode.innerHTML='—'"></td>`
+      : `<td><span class="no-img">—</span></td>`;
+    tb.innerHTML += `<tr>
+      <td style="color:var(--muted);font-size:.75rem;">${start+i+1}</td>
+      ${imgCell}
+      <td style="font-size:.75rem;">${h.date}</td>
+      <td style="font-size:.73rem;color:var(--muted);font-family:'Space Mono',monospace;">${h.chassis}</td>
+      <td style="font-weight:700;">${h.model}</td>
+      <td>${h.color}</td>
+      <td>${h.year || '—'}</td>
+      <td class="price-gold">${h.price ? fmt(h.price)+' ฿' : '—'}</td>
+      <td style="font-size:.75rem;color:var(--muted);">${h.addedBy}</td>
+    </tr>`;
+  });
+
+  const pg = document.getElementById('history-pages');
+  pg.innerHTML = '';
+  for (let i = 1; i <= pages; i++) {
+    pg.innerHTML += `<button class="page-btn${i===histPage?' active':''}" onclick="histPage=${i};renderHistory()">${i}</button>`;
+  }
+}
+
+// ═══════════════════════════════════
+// CHARTS — OHLC / Candlestick style
+// ═══════════════════════════════════
 function updateCharts() {
   const selModel = document.getElementById('chart-model').value;
-  const selYear  = document.getElementById('chart-year').value;
   if (!selModel) return;
 
-  let filtered = allData.filter(h =>
-    h.model === selModel && h.price > 0 && (!selYear || h.year == selYear)
-  );
+  const data = allData.filter(h => h.model === selModel && h.price > 0);
+  if (!data.length) return;
 
+  // Group by chassis → OHLC
   const byChassis = {};
-  filtered.forEach(h => {
+  data.forEach(h => {
     if (!byChassis[h.chassis]) byChassis[h.chassis] = [];
-    byChassis[h.chassis].push(h);
+    byChassis[h.chassis].push(h.price);
   });
 
-  // LINE CHART
-  const lineDatasets = Object.entries(byChassis).map(([ch, entries], i) => {
-    const sorted = entries.sort((a,b) => parseDate(a.date)-parseDate(b.date));
-    return {
-      label: ch,
-      data: sorted.map(e => e.price),
-      borderColor: COLORS[i % COLORS.length],
-      backgroundColor: COLORS[i % COLORS.length] + '33',
-      tension: 0.3, fill: true, pointRadius: 5, pointHoverRadius: 8,
-    };
-  });
+  const labels = Object.keys(byChassis);
+  const opens  = labels.map(ch => byChassis[ch][0]);
+  const closes = labels.map(ch => byChassis[ch][byChassis[ch].length-1]);
+  const highs  = labels.map(ch => Math.max(...byChassis[ch]));
+  const lows   = labels.map(ch => Math.min(...byChassis[ch]));
 
-  const firstChassis = Object.values(byChassis)[0];
-  const lineLabels = firstChassis ?
-    firstChassis.sort((a,b)=>parseDate(a.date)-parseDate(b.date)).map(e=>e.date) : [];
+  const barColors = labels.map((ch, i) => closes[i] >= opens[i] ? '#10b98188' : '#ef444488');
+  const borderColors = labels.map((ch, i) => closes[i] >= opens[i] ? '#10b981' : '#ef4444');
 
-  if (lineChartObj) lineChartObj.destroy();
-  lineChartObj = new Chart(document.getElementById('lineChart'), {
-    type: 'line',
-    data: { labels: lineLabels, datasets: lineDatasets },
+  if (candleChartObj) candleChartObj.destroy();
+  candleChartObj = new Chart(document.getElementById('candleChart'), {
+    type: 'bar',
+    data: {
+      labels: labels.map(l => l.length > 12 ? l.slice(-8) : l),
+      datasets: [
+        {
+          label: 'High-Low Range',
+          data: labels.map((ch, i) => highs[i] - lows[i]),
+          base: lows,
+          backgroundColor: barColors,
+          borderColor: borderColors,
+          borderWidth: 1,
+          borderRadius: 2,
+        },
+        {
+          label: 'Latest Price',
+          data: closes,
+          type: 'line',
+          borderColor: '#f0b429',
+          backgroundColor: 'transparent',
+          pointRadius: 4,
+          pointBackgroundColor: '#f0b429',
+          tension: 0.3,
+          borderWidth: 2,
+          yAxisID: 'y',
+        }
+      ]
+    },
     options: {
       responsive: true,
-      plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 10 } } } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#ccd6f6', font: { size: 10 } } },
+        tooltip: {
+          callbacks: {
+            beforeBody: (items) => {
+              const i = items[0].dataIndex;
+              return [
+                `Open:  ฿${fmt(opens[i])}`,
+                `High:  ฿${fmt(highs[i])}`,
+                `Low:   ฿${fmt(lows[i])}`,
+                `Close: ฿${fmt(closes[i])}`,
+              ];
+            }
+          }
+        }
+      },
       scales: {
-        x: { ticks: { color: '#94a3b8', font:{size:9} }, grid: { color: '#1e293b' } },
-        y: { ticks: { color: '#94a3b8', callback: v => '฿'+v.toLocaleString() }, grid: { color: '#1e293b' } }
+        x: { ticks: { color: '#5d7a9e', font:{size:8}, maxRotation:45 }, grid: { color: '#0d1f35' } },
+        y: { ticks: { color: '#5d7a9e', callback: v => '฿'+parseInt(v).toLocaleString() }, grid: { color: '#0d1f35' } }
       }
     }
   });
 
-  // AVG CHART — by month
+  // Monthly avg chart
   const monthMap = {};
-  filtered.forEach(h => {
-    const parts = h.date.split('/');
-    if (parts.length === 3) {
-      const key = parts[1]+'/'+parts[2]; // MM/YYYY
+  data.forEach(h => {
+    const p = h.date.split('/');
+    if (p.length === 3) {
+      const key = `${p[1].padStart(2,'0')}/${p[2]}`;
       if (!monthMap[key]) monthMap[key] = [];
       monthMap[key].push(h.price);
     }
   });
-  const months = Object.keys(monthMap).sort();
+  const months = Object.keys(monthMap).sort((a,b) => {
+    const [am,ay] = a.split('/'); const [bm,by] = b.split('/');
+    return (ay-by) || (am-bm);
+  });
   const avgData = months.map(m => Math.round(monthMap[m].reduce((a,b)=>a+b) / monthMap[m].length));
   const monthLabels = months.map(m => {
-    const [mm, yy] = m.split('/');
+    const [mm,yy] = m.split('/');
     return new Date(yy, mm-1).toLocaleString('en', {month:'short', year:'2-digit'});
   });
 
@@ -528,30 +997,155 @@ function updateCharts() {
     data: {
       labels: monthLabels,
       datasets: [{
-        label: 'ပျမ်းမျှဈေး (THB)',
+        label: 'ပျမ်းမျှဈေး (฿)',
         data: avgData,
-        backgroundColor: avgData.map((v,i) =>
-          i===0 || !avgData[i-1] ? '#3b82f6' : v > avgData[i-1] ? '#10b981' : '#ef4444'),
-        borderRadius: 6,
+        backgroundColor: avgData.map((v,i) => i===0||!avgData[i-1]?'#3b82f6': v>avgData[i-1]?'#10b981':'#ef4444'),
+        borderRadius: 5,
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { labels: { color: '#e2e8f0' } } },
+      plugins: { legend: { labels: { color:'#ccd6f6', font:{size:10} } } },
       scales: {
-        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
-        y: { ticks: { color: '#94a3b8', callback: v => '฿'+v.toLocaleString() }, grid: { color: '#1e293b' } }
+        x: { ticks: { color:'#5d7a9e' }, grid: { color:'#0d1f35' } },
+        y: { ticks: { color:'#5d7a9e', callback: v=>'฿'+parseInt(v).toLocaleString() }, grid: { color:'#0d1f35' } }
       }
     }
   });
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
+// ANALYSIS
+// ═══════════════════════════════════
+function buildAnalysis() {
+  // 1. Top models by count
+  const modelCount = {};
+  allData.forEach(r => { modelCount[r.model] = (modelCount[r.model]||0) + 1; });
+  const topModels = Object.entries(modelCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxCount = topModels[0]?.[1] || 1;
+  document.getElementById('top-models').innerHTML = topModels.map(([m,c],i) =>
+    `<div class="rank-row">
+      <span class="rank-num">${i+1}</span>
+      <span style="flex:0 0 100px;font-size:.78rem;text-align:left;color:var(--white);">${m.slice(0,12)}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round(c/maxCount*100)}%"></div></div>
+      <span class="rank-count">${c}</span>
+    </div>`
+  ).join('');
+
+  // 2. Avg price by model
+  const modelPrices = {};
+  allData.filter(r=>r.price>0).forEach(r => {
+    if (!modelPrices[r.model]) modelPrices[r.model] = [];
+    modelPrices[r.model].push(r.price);
+  });
+  const avgByModel = Object.entries(modelPrices)
+    .map(([m,ps]) => [m, Math.round(ps.reduce((a,b)=>a+b)/ps.length)])
+    .sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxAvg = avgByModel[0]?.[1] || 1;
+  document.getElementById('avg-by-model').innerHTML = avgByModel.map(([m,avg],i) =>
+    `<div class="rank-row">
+      <span class="rank-num">${i+1}</span>
+      <span style="flex:0 0 90px;font-size:.75rem;text-align:left;color:var(--white);">${m.slice(0,10)}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round(avg/maxAvg*100)}%;background:linear-gradient(90deg,var(--gold),#e09000);"></div></div>
+      <span class="rank-count" style="font-size:.7rem;">฿${(avg/1000).toFixed(0)}k</span>
+    </div>`
+  ).join('');
+
+  // 3. Day of week heatmap
+  const dayCount = [0,0,0,0,0,0,0];
+  allData.forEach(r => {
+    const t = parseDate(r.date);
+    if (t) dayCount[new Date(t).getDay()]++;
+  });
+  const maxDay = Math.max(...dayCount) || 1;
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  document.getElementById('day-labels').innerHTML = dayNames.map(d => `<div class="day-label">${d}</div>`).join('');
+  document.getElementById('day-heatmap').innerHTML = dayCount.map((c,i) => {
+    const intensity = Math.round(c/maxDay*100);
+    const bg = `rgba(37,99,235,${0.1 + intensity/100*0.9})`;
+    return `<div class="heatmap-cell" style="background:${bg};" title="${dayNames[i]}: ${c} ကား">${c}</div>`;
+  }).join('');
+
+  // 4. Monthly volume
+  const monthlyVol = {};
+  allData.forEach(r => {
+    const p = r.date.split('/');
+    if (p.length === 3) {
+      const key = `${p[1].padStart(2,'0')}/${p[2]}`;
+      monthlyVol[key] = (monthlyVol[key]||0) + 1;
+    }
+  });
+  const sortedMonths = Object.keys(monthlyVol).sort((a,b) => {
+    const [am,ay]=a.split('/'); const [bm,by]=b.split('/');
+    return (ay-by)||(am-bm);
+  }).slice(-12);
+  const mLabels = sortedMonths.map(m => {
+    const [mm,yy]=m.split('/');
+    return new Date(yy,mm-1).toLocaleString('en',{month:'short',year:'2-digit'});
+  });
+
+  if (monthlyChartObj) monthlyChartObj.destroy();
+  monthlyChartObj = new Chart(document.getElementById('monthlyChart'), {
+    type: 'line',
+    data: {
+      labels: mLabels,
+      datasets: [{
+        label: 'ကားရောင်းချမှု',
+        data: sortedMonths.map(m => monthlyVol[m]),
+        borderColor: '#3b82f6',
+        backgroundColor: '#3b82f622',
+        fill: true, tension: 0.4, pointRadius: 4,
+        pointBackgroundColor: '#3b82f6',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color:'#ccd6f6', font:{size:10} } } },
+      scales: {
+        x: { ticks: { color:'#5d7a9e', font:{size:9} }, grid: { color:'#0d1f35' } },
+        y: { ticks: { color:'#5d7a9e' }, grid: { color:'#0d1f35' } }
+      }
+    }
+  });
+
+  // 5. Top price
+  const topPrice = [...allData].filter(r=>r.price>0).sort((a,b)=>b.price-a.price).slice(0,8);
+  document.getElementById('top-price').innerHTML = topPrice.map((r,i) =>
+    `<div class="rank-row">
+      <span class="rank-num">${i+1}</span>
+      <div style="flex:1;text-align:left;">
+        <div style="font-size:.75rem;color:var(--white);">${r.model}</div>
+        <div style="font-size:.68rem;color:var(--muted);font-family:'Space Mono',monospace;">${r.chassis}</div>
+      </div>
+      <span class="rank-count">฿${fmt(r.price)}</span>
+    </div>`
+  ).join('');
+
+  // 6. Price range by model
+  const priceRange = Object.entries(modelPrices)
+    .map(([m,ps]) => [m, Math.min(...ps), Math.max(...ps), ps.length])
+    .filter(([,,,c]) => c >= 2)
+    .sort((a,b) => b[2]-a[2]).slice(0,8);
+  document.getElementById('price-range').innerHTML = priceRange.map(([m,lo,hi,c]) =>
+    `<div class="rank-row">
+      <div style="flex:1;text-align:left;">
+        <div style="font-size:.75rem;color:var(--white);">${m.slice(0,14)}</div>
+        <div style="font-size:.68rem;color:var(--muted);">n=${c}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:.72rem;color:#10b981;">↑ ฿${fmt(hi)}</div>
+        <div style="font-size:.72rem;color:#ef4444;">↓ ฿${fmt(lo)}</div>
+      </div>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════
 // UTIL
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════
 function fmt(n) { return n ? parseInt(n).toLocaleString() : '—'; }
 
-// Auto load on open
+// Init
 loadData();
 </script>
 </body>
