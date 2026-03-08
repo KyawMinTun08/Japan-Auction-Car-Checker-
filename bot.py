@@ -2,7 +2,6 @@ import asyncio
 import os
 import re
 import logging
-import requests
 import httpx
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -21,45 +20,55 @@ except ImportError:
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-TOKEN = os.environ.get('BOT_TOKEN', '')
-SHEET_WEBHOOK = os.environ.get('SHEET_WEBHOOK', '')
-CHANNEL_ID = os.environ.get('CHANNEL_ID', '-1003749046571')
-ADMIN_IDS = [int(x) for x in os.environ.get('ADMIN_IDS', '').split(',') if x.strip().isdigit()]
-CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
-CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
-CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
+GEMINI_API_KEY    = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL      = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+TOKEN             = os.environ.get('BOT_TOKEN', '')
+SHEET_WEBHOOK     = os.environ.get('SHEET_WEBHOOK', '')
+CHANNEL_ID        = os.environ.get('CHANNEL_ID', '-1003749046571')
+ADMIN_IDS         = [int(x) for x in os.environ.get('ADMIN_IDS', '').split(',') if x.strip().isdigit()]
+CLOUDINARY_CLOUD_NAME  = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
+CLOUDINARY_API_KEY     = os.environ.get('CLOUDINARY_API_KEY', '')
+CLOUDINARY_API_SECRET  = os.environ.get('CLOUDINARY_API_SECRET', '')
 
 # ── Chassis Prefix → Model Name Map ─────────────────
 CHASSIS_PREFIX_MAP = {
     # Toyota
-    "GRS200": "CROWN", "GRS201": "CROWN", "GRS202": "CROWN", "GRS210": "CROWN",
+    "VZNY12": "ADVAN",
+    "GRS200": "CROWN", "GRS201": "CROWN", "GRS202": "CROWN",
+    "GRS204": "CROWN", "GRS210": "CROWN",
     "GWS204": "CROWN HYBRID",
     "ZGE20": "WISH", "ZGE21": "WISH", "ZGE22": "WISH", "ZGE25": "WISH",
     "GRX133": "MARK X",
     "GGH25": "ALPHARD", "GGH20": "ALPHARD",
-    "MNH15": "ALPHARD", "ANH15": "ALPHARD", "ANH20": "ALPHARD",
+    "MNH15": "ALPHARD", "MNH10": "ALPHARD",
+    "ANH15": "ALPHARD", "ANH20": "ALPHARD",
     "ZRR75": "VOXY", "ZRR70": "VOXY", "ZWR80": "VOXY",
     "KDH201": "HIACE VAN", "KDH200": "HIACE VAN", "KDH205": "HIACE VAN", "TRH200": "HIACE VAN",
     "NCP165": "SUCCEED VAN", "NCP160": "SUCCEED VAN",
     "NCP59": "SUCCEED WAGON", "NCP58": "SUCCEED WAGON",
     "UZJ100": "LAND CRUISER", "HDJ101": "LAND CRUISER", "HZJ105": "LAND CRUISER",
+    "KDN185": "HILUX SURF", "KZN185": "HILUX SURF", "VZN185": "HILUX SURF",
     "KDJ95": "LAND CRUISER PRADO", "KZJ95": "LAND CRUISER PRADO", "UZJ101": "LAND CRUISER",
     "USF40": "LEXUS LS", "USF41": "LEXUS LS",
+    "ACU25": "KLUGER", "ACU20": "KLUGER", "MCU25": "KLUGER",
     "AZE0": "LEAF",
     "XZC610": "DUTRO", "XZU548": "DUTRO TRUCK", "XZU300": "DUTRO TRUCK",
     "ACA33": "VANGUARD", "ACA38": "VANGUARD",
+    "CW4YL": "QUON",
     # Nissan
     "NT31": "X-TRAIL", "NT32": "X-TRAIL", "DNT31": "X-TRAIL", "T31": "X-TRAIL",
-    "YF15": "JUKE", "F15": "JUKE",
+    "YF15": "JUKE", "F15": "JUKE", "NF15": "JUKE",
     "SK82TN": "VANETTE TRUCK", "SK82VN": "VANETTE TRUCK",
     # Honda
     "GP1": "FIT HYBRID", "GP5": "FIT HYBRID", "GP6": "FIT HYBRID",
     "GP7": "FIT SHUTTLE HYBRID", "GP2": "FIT SHUTTLE HYBRID",
     "GK3": "FIT", "GK5": "FIT", "GE6": "FIT", "GE8": "FIT",
-    "GB3": "FREED SPIKE", "GB4": "FREED SPIKE",
+    "GB3": "FREED", "GB4": "FREED",
+    "RE4": "CRV", "RE3": "CRV", "RD1": "CRV", "RD5": "CRV",
     "ZE2": "INSIGHT", "ZE3": "INSIGHT",
+    # Mazda
+    "KE2AW": "CX5", "KE2FW": "CX5", "KE5FW": "CX5",
+    "SKP2T": "BONGO TRUCK", "SLP2L": "BONGO TRUCK",
     # Daihatsu / Subaru
     "S210P": "HIJET TRUCK", "S211P": "HIJET TRUCK", "S510P": "HIJET TRUCK",
     "S500P": "HIJET TRUCK", "S501P": "HIJET TRUCK", "S321V": "HIJET VAN",
@@ -70,6 +79,7 @@ CHASSIS_PREFIX_MAP = {
     "FE74BV": "CANTER", "FE82BS": "CANTER", "FBA30": "CANTER",
     "FE82D": "CANTER", "FE82EE": "CANTER", "FE72EE": "CANTER",
     "FE84DV": "CANTER", "FE83D": "CANTER", "FE70B": "CANTER",
+    "FE73EB": "CANTER", "FE70EB": "CANTER", "FEA20": "CANTER",
     "FB70BB": "CANTER GUTS",
     "FK61FM": "FUSO FIGHTER", "FQ62F": "FUSO FIGHTER", "FK71F": "FUSO FIGHTER",
     "FEA50": "FUSO TRUCK", "FBA20": "FUSO TRUCK",
@@ -79,15 +89,13 @@ CHASSIS_PREFIX_MAP = {
     "FC6JLW": "RANGER", "FC7JKY": "RANGER",
     "FW1EXW": "PROFIA", "SH1EDX": "PROFIA",
     # UD Trucks
-    "CG5ZA": "UD", "CG5ZE": "UD", "CG4ZA": "UD",
-    "CD5ZA": "UD", "CD48R": "BIG THUMB",
+    "CG5ZA": "UD", "CG5ZE": "UD", "CG4ZA": "UD", "CG4YA": "UD",
+    "CD5ZA": "UD", "CD4ZA": "UD", "CD48R": "BIG THUMB",
     "MK35A": "CONDOR", "MK38L": "CONDOR", "MK36A": "CONDOR",
     "MK36B": "UD", "MK38C": "UD",
     "JNCMM60C6GU": "UD", "JNCMM60G6GU": "UD",
     "GK6XA": "QUON",
     "JNCLSC": "CONDOR",
-    # Mazda
-    "SKP2T": "BONGO TRUCK",
     # Mitsubishi
     "V98W": "PAJERO", "V97W": "PAJERO", "V93W": "PAJERO",
     "V75W": "PAJERO", "V78W": "PAJERO",
@@ -95,7 +103,7 @@ CHASSIS_PREFIX_MAP = {
     "WVWZZZ": "NEW BEETLE",
 }
 
-# ── Auction Checklist Database (Updated: March 3, 2026) ───
+# ── Auction Checklist Database ───────────────────────
 CARS = [
     # ── Original List ──
     {"chassis": "MNH15-0039667", "model": "ALPHARD", "color": "WHITE", "year": 2005},
@@ -155,7 +163,7 @@ CARS = [
     {"chassis": "GP5-3040254", "model": "FIT HYBRID", "color": "WHITE", "year": 2014},
     {"chassis": "GP1-1096649", "model": "FIT HYBRID", "color": "BLACK", "year": 2011},
     {"chassis": "GP1-1014176", "model": "FIT HYBRID", "color": "PEARL WHITE", "year": 2010},
-    {"chassis": "GB3-1312198", "model": "FREED SPIKE", "color": "PEARL WHITE", "year": 2010},
+    {"chassis": "GB3-1312198", "model": "FREED", "color": "PEARL WHITE", "year": 2010},
     {"chassis": "FQ62F-520185", "model": "FUSO FIGHTER", "color": "WHITE", "year": 2008},
     {"chassis": "FEA50-521744", "model": "FUSO TRUCK", "color": "PEARL WHITE", "year": 2013},
     {"chassis": "KDH201-0056284", "model": "HIACE VAN", "color": "WHITE", "year": 2010},
@@ -170,7 +178,7 @@ CARS = [
     {"chassis": "AZE0-062459", "model": "LEAF", "color": "PEARL WHITE", "year": 2013},
     {"chassis": "GRX133-6003681", "model": "MARK X", "color": "SILVER", "year": 2013},
     {"chassis": "WVWZZZ16ZDM685003", "model": "NEW BEETLE", "color": "BLACK", "year": 2013},
-    {"chassis": "NCP165-0001511", "model": "PROBOX VAN", "color": "PEARL WHITE", "year": 2014},
+    {"chassis": "NCP165-0001511", "model": "SUCCEED VAN", "color": "PEARL WHITE", "year": 2014},
     {"chassis": "GK6XA-10555", "model": "QUON", "color": "WHITE", "year": 2013},
     {"chassis": "FC6JLW-10241", "model": "RANGER", "color": "PEARL WHITE", "year": 2006},
     {"chassis": "FY54JTY530030", "model": "SUPER GREAT", "color": "PEARL WHITE", "year": 2003},
@@ -186,6 +194,47 @@ CARS = [
     {"chassis": "NT32-037944", "model": "X-TRAIL", "color": "BLACK", "year": 2015},
     {"chassis": "NT31-244285", "model": "X-TRAIL", "color": "PEARL WHITE", "year": 2012},
     {"chassis": "DNT31-209100", "model": "X-TRAIL", "color": "WHITE", "year": 2011},
+    # ── March 8, 2026 Auction List (KALANG9 FREEZONE) ──
+    {"chassis": "VZNY12-070391", "model": "ADVAN", "color": "WHITE", "year": 2017},
+    {"chassis": "GGH20-8002412", "model": "ALPHARD", "color": "PEARL WHITE", "year": 2008},
+    {"chassis": "MNH10-0099576", "model": "ALPHARD", "color": "PEARL WHITE", "year": 2007},
+    {"chassis": "SLP2L-102206", "model": "BONGO TRUCK", "color": "WHITE", "year": 2017},
+    {"chassis": "FEA20-520134", "model": "CANTER", "color": "SILVER", "year": 2013},
+    {"chassis": "FE73EB-501814", "model": "CANTER", "color": "LIGHT GREEN", "year": 2003},
+    {"chassis": "FE70EB-506566", "model": "CANTER", "color": "WHITE", "year": 2004},
+    {"chassis": "GRS204-0014299", "model": "CROWN", "color": "WHITE", "year": 2010},
+    {"chassis": "RE4-1006211", "model": "CRV", "color": "WHITE", "year": 2006},
+    {"chassis": "KE2AW-115142", "model": "CX5", "color": "WHITE", "year": 2013},
+    {"chassis": "GP5-3037138", "model": "FIT HYBRID", "color": "PEARL WHITE", "year": 2014},
+    {"chassis": "GP5-3216073", "model": "FIT HYBRID", "color": "PEARL WHITE", "year": 2015},
+    {"chassis": "GB3-1112824", "model": "FREED", "color": "PEARL WHITE", "year": 2009},
+    {"chassis": "FK71F-701985", "model": "FUSO FIGHTER", "color": "GREEN", "year": 2007},
+    {"chassis": "S211P-0042777", "model": "HIJET TRUCK", "color": "SILVER", "year": 2009},
+    {"chassis": "S211P-0138980", "model": "HIJET TRUCK", "color": "WHITE", "year": 2011},
+    {"chassis": "KDN185-0001271", "model": "HILUX SURF", "color": "SILVER", "year": 2000},
+    {"chassis": "ZE2-1128237", "model": "INSIGHT", "color": "SILVER", "year": 2009},
+    {"chassis": "NF15-060818", "model": "JUKE", "color": "WHITE", "year": 2012},
+    {"chassis": "ACU25-0032701", "model": "KLUGER", "color": "WHITE", "year": 2004},
+    {"chassis": "USF40-5079528", "model": "LEXUS LS", "color": "PEARL WHITE", "year": 2008},
+    {"chassis": "WVWZZZ16ZDM635922", "model": "NEW BEETLE", "color": "RED", "year": 2013},
+    {"chassis": "GK6XA-10291", "model": "QUON", "color": "GREEN", "year": 2012},
+    {"chassis": "CW4YL-30468", "model": "QUON", "color": "SILVER", "year": 2009},
+    {"chassis": "NCP165-0056792", "model": "SUCCEED VAN", "color": "WHITE", "year": 2018},
+    {"chassis": "NCP59-0024963", "model": "SUCCEED WAGON", "color": "DARK BLUE", "year": 2012},
+    {"chassis": "CG5ZA-12819", "model": "UD", "color": "PEARL WHITE", "year": 2014},
+    {"chassis": "CG5ZA-11731", "model": "UD", "color": "WHITE", "year": 2013},
+    {"chassis": "CG4YA-00054", "model": "UD", "color": "WHITE", "year": 2006},
+    {"chassis": "CD4ZA-31233", "model": "UD", "color": "GREEN", "year": 2009},
+    {"chassis": "SK82TN-319474", "model": "VANETTE TRUCK", "color": "WHITE", "year": 2005},
+    {"chassis": "ZRR75-0083512", "model": "VOXY", "color": "PEARL WHITE", "year": 2011},
+    {"chassis": "ZGE25-0020690", "model": "WISH", "color": "PEARL WHITE", "year": 2012},
+    {"chassis": "ZGE20-0154748", "model": "WISH", "color": "PEARL WHITE", "year": 2013},
+    {"chassis": "ZGE20-0152288", "model": "WISH", "color": "BLACK", "year": 2012},
+    {"chassis": "NT32-036496", "model": "X-TRAIL", "color": "BLACK", "year": 2014},
+    {"chassis": "NT31-212796", "model": "X-TRAIL", "color": "PEARL WHITE", "year": 2011},
+    {"chassis": "NT31-049247", "model": "X-TRAIL", "color": "BLACK", "year": 2009},
+    {"chassis": "DNT31-205472", "model": "X-TRAIL", "color": "PEARL WHITE", "year": 2011},
+    {"chassis": "NT32-038921", "model": "X-TRAIL", "color": "PEARL WHITE", "year": 2015},
 ]
 
 PRICE_HISTORY = []
@@ -193,7 +242,6 @@ pending_photo = {}
 
 # ── Helper Functions ──────────────────────────────────
 def guess_model_from_chassis(chassis_input):
-    """Guess model name from chassis prefix using CHASSIS_PREFIX_MAP"""
     chassis_upper = chassis_input.upper().strip()
     sorted_prefixes = sorted(CHASSIS_PREFIX_MAP.keys(), key=len, reverse=True)
     for prefix in sorted_prefixes:
@@ -202,24 +250,17 @@ def guess_model_from_chassis(chassis_input):
     return "UNKNOWN"
 
 async def guess_model_from_chassis_gemini(chassis_input):
-    """Fallback: Ask Gemini to identify car model from chassis prefix"""
     if not GEMINI_API_KEY:
         return "UNKNOWN"
     try:
         prefix = chassis_input.split("-")[0] if "-" in chassis_input else chassis_input[:6]
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-        payload = {
-            "contents": [{
-                "parts": [{"text": f"What Japanese car model has chassis prefix '{prefix}'? Reply with ONLY the model name in UPPERCASE (e.g. HIJET TRUCK, X-TRAIL, FIT HYBRID). If unknown reply UNKNOWN."}]
-            }]
-        }
+        payload = {"contents": [{"parts": [{"text": f"What Japanese car model has chassis prefix '{prefix}'? Reply with ONLY the model name in UPPERCASE (e.g. HIJET TRUCK, X-TRAIL, FIT HYBRID). If unknown reply UNKNOWN."}]}]}
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload, timeout=15)
         data = resp.json()
         if "candidates" in data:
-            model = data["candidates"][0]["content"]["parts"][0]["text"].strip().upper()
-            model = model.split("\n")[0].strip()
-            logger.info(f"Gemini guessed model for {prefix}: {model}")
+            model = data["candidates"][0]["content"]["parts"][0]["text"].strip().upper().split("\n")[0].strip()
             return model if model and model != "UNKNOWN" else "UNKNOWN"
     except Exception as e:
         logger.error(f"Gemini model guess error: {e}")
@@ -237,7 +278,6 @@ def find_by_model(model_input):
     return [c for c in CARS if model_input in c["model"].upper()]
 
 def extract_chassis_from_text(text):
-    """Extract chassis number - improved patterns for all formats"""
     text = text.upper().strip()
     patterns = [
         r'[A-Z]{1,5}\d{1,4}[A-Z]{0,2}\d{0,2}-\d{4,7}',
@@ -254,8 +294,9 @@ def get_price_history(chassis):
     return [p for p in PRICE_HISTORY if p["chassis"] == chassis]
 
 def format_car_info(car, price=None, history=None):
+    year_str = str(car['year']) if car.get('year') and car['year'] != 0 else "—"
     txt = (
-        f"🚗 *{car['model']}* ({car['year']})\n"
+        f"🚗 *{car['model']}* ({year_str})\n"
         f"🔑 Chassis: `{car['chassis']}`\n"
         f"🎨 Color: {car['color']}\n"
     )
@@ -269,68 +310,47 @@ def format_car_info(car, price=None, history=None):
     return txt
 
 async def upload_to_cloudinary(file_bytes: bytes, chassis: str) -> str:
-    """Upload image to Cloudinary and return URL"""
     if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
         return ""
     try:
-        import base64
-        import hashlib
-        import time
-
+        import base64, hashlib, time
         timestamp = str(int(time.time()))
         public_id = f"auction/{chassis.replace('-', '_')}_{timestamp}"
-
-        sig_str = f"public_id={public_id}&timestamp={timestamp}{CLOUDINARY_API_SECRET}"
+        sig_str   = f"public_id={public_id}&timestamp={timestamp}{CLOUDINARY_API_SECRET}"
         signature = hashlib.sha1(sig_str.encode()).hexdigest()
-
-        img_b64 = base64.b64encode(file_bytes).decode()
-        data_uri = f"data:image/jpeg;base64,{img_b64}"
-
-        url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/image/upload"
-        payload = {
-            "file": data_uri,
-            "public_id": public_id,
-            "timestamp": timestamp,
-            "api_key": CLOUDINARY_API_KEY,
-            "signature": signature,
-        }
-
+        img_b64   = base64.b64encode(file_bytes).decode()
+        url       = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/image/upload"
+        payload   = {"file": f"data:image/jpeg;base64,{img_b64}", "public_id": public_id,
+                     "timestamp": timestamp, "api_key": CLOUDINARY_API_KEY, "signature": signature}
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, data=payload, timeout=30)
         result = resp.json()
-
-        if "secure_url" in result:
-            logger.info(f"Cloudinary upload OK: {result['secure_url']}")
-            return result["secure_url"]
-        else:
-            logger.error(f"Cloudinary error: {result}")
-            return ""
+        return result.get("secure_url", "")
     except Exception as e:
         logger.error(f"Cloudinary upload error: {e}")
         return ""
 
 async def save_price(chassis, model, color, year, price, user_name, image_url=""):
-    now = datetime.now().strftime("%d/%m/%Y")
+    now   = datetime.now().strftime("%d/%m/%Y")
     entry = {
         "chassis": chassis, "model": model, "color": color,
         "year": year, "price": price, "date": now,
-        "location": "Maesot FZ", "added_by": user_name,
-        "image_url": image_url
+        "location": "Maesot FZ", "added_by": user_name, "image_url": image_url
     }
     PRICE_HISTORY.append(entry)
     if SHEET_WEBHOOK:
         try:
             async with httpx.AsyncClient() as client:
                 await client.post(SHEET_WEBHOOK, json=entry, timeout=10, follow_redirects=True)
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"save_price error: {e}")
     return entry
 
 # ── Channel Post ──────────────────────────────────────
 async def post_to_channel(context, chassis, model, color, year, price, image_url=""):
     if not CHANNEL_ID:
         return
-    year_str = str(year) if year and year != 0 else "—"
+    year_str  = str(year) if year and year != 0 else "—"
     color_str = color if color and color not in ["-", ""] else "—"
     price_str = f"฿{int(price):,}" if price else "—"
     text = (
@@ -347,18 +367,9 @@ async def post_to_channel(context, chassis, model, color, year, price, image_url
     )
     try:
         if image_url:
-            await context.bot.send_photo(
-                chat_id=CHANNEL_ID,
-                photo=image_url,
-                caption=text,
-                parse_mode='Markdown'
-            )
+            await context.bot.send_photo(chat_id=CHANNEL_ID, photo=image_url, caption=text, parse_mode='Markdown')
         else:
-            await context.bot.send_message(
-                chat_id=CHANNEL_ID,
-                text=text,
-                parse_mode='Markdown'
-            )
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=text, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Channel post error: {e}")
 
@@ -390,17 +401,14 @@ async def find_car(update: Update, context: ContextTypes.DEFAULT_TYPE):
         latest_price = history[-1]['price'] if history else None
         txt = format_car_info(car, latest_price, history if history else None)
         keyboard = [[InlineKeyboardButton("💰 ဈေးထည့်", callback_data=f"addprice_{car['chassis']}")]]
-        await update.message.reply_text(txt, parse_mode='Markdown',
-                                        reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(txt, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         guessed = guess_model_from_chassis(chassis)
         if guessed == "UNKNOWN":
             guessed = await guess_model_from_chassis_gemini(chassis)
         if guessed != "UNKNOWN":
             await update.message.reply_text(
-                f"⚠️ `{chassis}` Checklist မှာ မပါဘူး\n"
-                f"🚗 ခန့်မှန်း Model: *{guessed}*\n\n"
-                f"ဈေးထည့်လိုရင် `/price {chassis} [ဈေး]`",
+                f"⚠️ `{chassis}` Checklist မှာ မပါဘူး\n🚗 ခန့်မှန်း Model: *{guessed}*\n\nဈေးထည့်လိုရင် `/price {chassis} [ဈေး]`",
                 parse_mode='Markdown')
         else:
             await update.message.reply_text(
@@ -411,23 +419,23 @@ async def find_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("❌ Model ထည့်ပါ\nဥပမာ: `/model xtrail`", parse_mode='Markdown')
         return
-    query = ' '.join(context.args)
+    query   = ' '.join(context.args)
     results = find_by_model(query)
     if not results:
         await update.message.reply_text(f"❌ *{query}* မတွေ့ပါ", parse_mode='Markdown')
         return
     txt = f"🔎 *{query.upper()}* ရလဒ် ({len(results)} စီး):\n\n"
     for car in results:
-        history = get_price_history(car['chassis'])
+        history  = get_price_history(car['chassis'])
         price_str = f"฿{history[-1]['price']:,}" if history else "ဈေးမရသေး"
-        txt += f"• `{car['chassis']}` — {car['color']} {car['year']} — *{price_str}*\n"
+        year_str  = str(car['year']) if car.get('year') and car['year'] != 0 else "—"
+        txt += f"• `{car['chassis']}` — {car['color']} {year_str} — *{price_str}*\n"
     txt += f"\n🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)"
     await update.message.reply_text(txt, parse_mode='Markdown')
 
 async def add_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
-        await update.message.reply_text(
-            "❌ Format မှားနေတယ်\nဥပမာ: `/price NT32-504837 150000`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Format မှားနေတယ်\nဥပမာ: `/price NT32-504837 150000`", parse_mode='Markdown')
         return
     chassis = context.args[0].upper()
     try:
@@ -442,13 +450,12 @@ async def add_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
             guessed = await guess_model_from_chassis_gemini(chassis)
         car = {"chassis": chassis, "model": guessed, "color": "-", "year": 0}
     user_name = update.effective_user.first_name or "Unknown"
-    entry = await save_price(car['chassis'], car['model'], car['color'], car['year'], price, user_name)
+    entry    = await save_price(car['chassis'], car['model'], car['color'], car['year'], price, user_name)
+    year_str  = str(car['year']) if car.get('year') and car['year'] != 0 else "—"
     txt = (
         f"✅ *ဈေးထည့်ပြီးပါပြီ!*\n\n"
-        f"🚗 {car['model']} — `{chassis}`\n"
-        f"💰 ฿{price:,}\n"
-        f"📅 {entry['date']}\n"
-        f"👤 {user_name}\n\n"
+        f"🚗 {car['model']} ({year_str}) — `{chassis}`\n"
+        f"💰 ฿{price:,}\n📅 {entry['date']}\n👤 {user_name}\n\n"
         f"🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)"
     )
     await update.message.reply_text(txt, parse_mode='Markdown')
@@ -459,17 +466,17 @@ async def price_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     chassis = ' '.join(context.args).upper()
     history = get_price_history(chassis)
-    car = find_by_chassis(chassis)
+    car     = find_by_chassis(chassis)
     if not history:
         await update.message.reply_text(f"❌ `{chassis}` ဈေးမှတ်တမ်း မရှိသေးပါ", parse_mode='Markdown')
         return
     model_name = car['model'] if car else chassis
-    txt = f"📈 *{model_name}* ဈေးမှတ်တမ်း\n`{chassis}`\n\n"
+    txt  = f"📈 *{model_name}* ဈေးမှတ်တမ်း\n`{chassis}`\n\n"
     prev = None
     for h in history:
         if prev:
-            diff = h['price'] - prev
-            arrow = "📈" if diff > 0 else "📉" if diff < 0 else "➡"
+            diff     = h['price'] - prev
+            arrow    = "📈" if diff > 0 else "📉" if diff < 0 else "➡"
             diff_str = f" ({arrow} {diff:+,})"
         else:
             diff_str = ""
@@ -477,16 +484,17 @@ async def price_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prev = h['price']
     if len(history) >= 2:
         change = history[-1]['price'] - history[0]['price']
-        pct = (change / history[0]['price']) * 100
+        pct    = (change / history[0]['price']) * 100
         txt += f"\n📊 စုစုပေါင်းပြောင်းလဲမှု: *{change:+,}* ({pct:+.1f}%)"
     await update.message.reply_text(txt, parse_mode='Markdown')
 
 async def list_cars(update: Update, context: ContextTypes.DEFAULT_TYPE):
     priced = set(p['chassis'] for p in PRICE_HISTORY)
-    txt = f"🚗 *ကားစာရင်း ({len(CARS)} စီး)*\n\n"
+    txt    = f"🚗 *ကားစာရင်း ({len(CARS)} စီး)*\n\n"
     for car in CARS[:20]:
-        status = "💰" if car['chassis'] in priced else "⏳"
-        txt += f"{status} `{car['chassis']}` — {car['model']} {car['year']}\n"
+        status   = "💰" if car['chassis'] in priced else "⏳"
+        year_str = str(car['year']) if car.get('year') and car['year'] != 0 else "—"
+        txt += f"{status} `{car['chassis']}` — {car['model']} {year_str}\n"
     if len(CARS) > 20:
         txt += f"\n... နှင့် {len(CARS)-20} စီး ထပ်ရှိသေးတယ်"
     txt += f"\n\n🌐 [အားလုံးကြည့်ရန်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)"
@@ -496,22 +504,17 @@ async def web_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (
         "🌐 *JAN JAPAN Auction Web App*\n\n"
         "https://kyawmintun08.github.io/Japan-Auction-Car-Checker/\n\n"
-        "• ကားရှာနိုင် 🔍\n"
-        "• ဈေးကြည့်နိုင် 📈\n"
-        "• Chart ကြည့်နိုင် 📊\n"
-        "• မည်သူမဆို ကြည့်နိုင် ✅"
+        "• ကားရှာနိုင် 🔍\n• ဈေးကြည့်နိုင် 📈\n• Chart ကြည့်နိုင် 📊\n• မည်သူမဆို ကြည့်နိုင် ✅"
     )
     await update.message.reply_text(txt, parse_mode='Markdown')
 
 # ── Tesseract OCR Fallback ────────────────────────────
 def tesseract_ocr_chassis(file_bytes: bytes) -> str:
-    """Use Tesseract OCR to extract chassis number from car photo"""
     if not TESSERACT_AVAILABLE:
         return ""
     try:
-        img = Image.open(BytesIO(file_bytes))
-        text = pytesseract.image_to_string(img)
-        logger.info(f"Tesseract raw: {text[:200]}")
+        img     = Image.open(BytesIO(file_bytes))
+        text    = pytesseract.image_to_string(img)
         chassis = extract_chassis_from_text(text)
         return chassis or ""
     except Exception as e:
@@ -520,111 +523,94 @@ def tesseract_ocr_chassis(file_bytes: bytes) -> str:
 
 # ── Gemini OCR Functions ──────────────────────────────
 async def gemini_ocr_auction_list(file_bytes: bytes) -> list:
-    """Use Gemini Vision to extract all cars from auction list image"""
     try:
-        import base64
+        import base64, json
         if not GEMINI_API_KEY:
             return []
-
         img_b64 = base64.b64encode(file_bytes).decode()
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-
+        url     = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
         payload = {
-            "contents": [{
-                "parts": [
-                    {"text": """This is a Japan auction car list image from Maesot Freezone Myanmar.
+            "contents": [{"parts": [
+                {"text": """This is a Japan auction car list image from Maesot Freezone Myanmar.
 Extract ALL cars from the table. Look carefully at every column.
-
 Return ONLY a JSON array (no other text, no markdown):
 [{"chassis":"NT32-024640","model":"X-TRAIL","color":"BLACK","year":2014},...]
-
-Important rules:
-- chassis: exact value from TYPE or CHASSIS column (e.g. NT32-024640, GP1-1011906)
-- model: car model name from MODEL column (e.g. X-TRAIL, WISH, FIT HYBRID, CROWN, HIJET TRUCK, ALPHARD, NOAH, CANTER, HIACE VAN). Read this column carefully.
-- color: color value (WHITE/BLACK/SILVER/PEARL WHITE/BLUE/GREEN/BEIGE/etc)
-- year: manufacturing year as integer (e.g. 2013)
-- Extract every single row from the table, do not skip any row."""},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
-                ]
-            }]
+Rules:
+- chassis: exact value from TYPE or CHASSIS column
+- model: car model name from MODEL column
+- color: color value (WHITE/BLACK/SILVER/PEARL WHITE/BLUE/GREEN/etc)
+- year: manufacturing year as integer
+- Extract every single row, do not skip any."""},
+                {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
+            ]}]
         }
-
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload, timeout=60)
         data = resp.json()
-
         if "candidates" not in data:
             logger.error(f"Gemini auction list error: {data}")
             return []
-
-        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        logger.info(f"Gemini auction list raw: {text[:200]}")
-
-        import json
+        text  = data["candidates"][0]["content"]["parts"][0]["text"].strip()
         start = text.find('[')
-        end = text.rfind(']') + 1
+        end   = text.rfind(']') + 1
         if start >= 0 and end > start:
-            json_str = text[start:end]
-            cars = json.loads(json_str)
-            return cars
+            return json.loads(text[start:end])
         return []
-
     except Exception as e:
         logger.error(f"Gemini auction list OCR error: {e}")
         return []
 
 
 async def gemini_ocr_chassis(file_bytes: bytes) -> dict:
-    """Use Gemini Vision to extract chassis, model, color from car photo, with Tesseract fallback"""
+    """
+    ✅ FIX: YEAR ပါ return လုပ်အောင် prompt နဲ့ parse ပြင်ထားတယ်
+    """
     if GEMINI_API_KEY:
         try:
             import base64
-
             img_b64 = base64.b64encode(file_bytes).decode()
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-
+            url     = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
             payload = {
-                "contents": [{
-                    "parts": [
-                        {"text": """This is a Japan auction car photo. A chassis number is written with a marker pen on the windshield.
-Examples of chassis numbers: NT32-024640, DNT31-209100, GRS201-0006860, GP1-1011906, S510P-0147424, KZN185-007706.
+                "contents": [{"parts": [
+                    {"text": """This is a Japan auction car photo. A chassis number is written with a marker pen on the windshield.
+Examples: NT32-024640, DNT31-209100, GRS201-0006860, GP1-1011906, S510P-0147424.
 
 Please identify:
 1. The chassis number on the windshield
-2. The car model (e.g. X-TRAIL, CROWN, HILUX SURF, WISH, FIT HYBRID)
+2. The car model (e.g. X-TRAIL, CROWN, HILUX SURF, WISH, FIT HYBRID, ALPHARD)
 3. The car color (e.g. WHITE, PEARL WHITE, BLACK, SILVER, BLUE)
+4. The manufacturing year (e.g. 2014, 2011, 2008)
 
 Return in EXACTLY this format (nothing else):
 CHASSIS: NT32-024640
 MODEL: X-TRAIL
-COLOR: PEARL WHITE"""},
-                        {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
-                    ]
-                }]
+COLOR: BLACK
+YEAR: 2014"""},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
+                ]}]
             }
-
             async with httpx.AsyncClient() as client:
                 resp = await client.post(url, json=payload, timeout=60)
             data = resp.json()
 
             if "candidates" in data:
-                text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                text    = data["candidates"][0]["content"]["parts"][0]["text"].strip()
                 logger.info(f"Gemini raw: {text}")
 
                 chassis = ""
-                model = ""
-                color = ""
+                model   = ""
+                color   = ""
+                year    = 0  # ✅ year ထပ်ထည့်
 
                 for line in text.upper().split("\n"):
                     line = line.strip()
                     if line.startswith("CHASSIS:"):
                         raw = line.replace("CHASSIS:", "").strip()
-                        patterns = [
+                        for pattern in [
                             r'[A-Z]{1,5}\d{1,4}[A-Z]{0,2}\d{0,2}-\d{4,7}',
                             r'[A-Z]{2,6}\d{2,4}-\d{4,7}',
                             r'[A-Z0-9]{4,20}-\d{4,7}',
-                        ]
-                        for pattern in patterns:
+                        ]:
                             match = re.search(pattern, raw)
                             if match:
                                 chassis = match.group().replace(' ', '-')
@@ -633,48 +619,49 @@ COLOR: PEARL WHITE"""},
                         model = line.replace("MODEL:", "").strip()
                     elif line.startswith("COLOR:"):
                         color = line.replace("COLOR:", "").strip()
+                    elif line.startswith("YEAR:"):  # ✅ year parse
+                        try:
+                            year = int(re.search(r'\d{4}', line).group())
+                        except:
+                            year = 0
 
                 if chassis:
-                    logger.info(f"Gemini found — Chassis: {chassis}, Model: {model}, Color: {color}")
-                    return {"chassis": chassis, "model": model, "color": color}
+                    logger.info(f"Gemini — Chassis:{chassis} Model:{model} Color:{color} Year:{year}")
+                    return {"chassis": chassis, "model": model, "color": color, "year": year}
             else:
                 logger.error(f"Gemini error: {data}")
 
         except Exception as e:
             logger.error(f"Gemini OCR error: {e}")
 
-    logger.info("Gemini failed or unavailable, trying Tesseract fallback...")
+    # Tesseract fallback
+    logger.info("Gemini failed, trying Tesseract...")
     chassis = tesseract_ocr_chassis(file_bytes)
     if chassis:
-        logger.info(f"Chassis found (Tesseract): {chassis}")
-        return {"chassis": chassis, "model": "", "color": ""}
-
-    return {"chassis": "", "model": "", "color": ""}
+        return {"chassis": chassis, "model": "", "color": "", "year": 0}
+    return {"chassis": "", "model": "", "color": "", "year": 0}
 
 # ── Photo Handler ─────────────────────────────────────
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CARS
     user_id = update.effective_user.id
-    photo = update.message.photo[-1]
+    photo   = update.message.photo[-1]
     caption = (update.message.caption or "").strip().lower()
 
-    # ── Auction List Mode ──────────────────────────────
+    # ── Auction List Mode ──
     if "list" in caption:
         await update.message.reply_text("📋 Auction List ဖတ်နေတယ်... ⏳")
         try:
-            file = await photo.get_file()
+            file       = await photo.get_file()
             file_bytes = await file.download_as_bytearray()
-            new_cars = await gemini_ocr_auction_list(bytes(file_bytes))
+            new_cars   = await gemini_ocr_auction_list(bytes(file_bytes))
         except Exception as e:
-            logger.error(f"Auction list download error: {e}")
+            logger.error(f"Auction list error: {e}")
             new_cars = []
 
         if not new_cars:
             await update.message.reply_text(
-                "⚠️ List ဖတ်မရပါ\n\n"
-                "💡 Gemini API limit ကုန်သွားနိုင်တယ် — မနက်ဖြန် ပြန်ကြိုးစားပါ\n"
-                "ဒါမှမဟုတ် ပုံ ရှင်းနေသလား စစ်ကြည့်ပါ"
-            )
+                "⚠️ List ဖတ်မရပါ\n\n💡 Gemini API limit ကုန်သွားနိုင်တယ် — မနက်ဖြန် ပြန်ကြိုးစားပါ")
             return
 
         existing_chassis = {c["chassis"].upper() for c in CARS}
@@ -682,24 +669,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for car in new_cars:
             chassis = str(car.get("chassis", "")).upper().strip()
             if chassis and chassis not in existing_chassis:
-                model = car.get("model", "")
-                if not model or model == "UNKNOWN":
-                    model = guess_model_from_chassis(chassis)
+                model = car.get("model", "") or guess_model_from_chassis(chassis)
                 CARS.append({
-                    "chassis": chassis,
-                    "model": model,
-                    "color": car.get("color", "-"),
-                    "year": int(car.get("year", 0)),
-                    "location": "MaeSot FZ"
+                    "chassis": chassis, "model": model,
+                    "color": car.get("color", "-"), "year": int(car.get("year", 0)),
                 })
                 existing_chassis.add(chassis)
                 added.append(chassis)
 
-        txt = (
-            f"✅ *Auction List Update ပြီး!*\n\n"
-            f"📊 ဖတ်ရတဲ့ ကား: {len(new_cars)} စီး\n"
-            f"✨ အသစ်ထည့်ခဲ့: {len(added)} စီး\n\n"
-        )
+        txt = f"✅ *Auction List Update ပြီး!*\n\n📊 ဖတ်ရတဲ့ ကား: {len(new_cars)} စီး\n✨ အသစ်ထည့်ခဲ့: {len(added)} စီး\n\n"
         if added:
             txt += "🆕 အသစ်ထည့်ခဲ့တာ:\n"
             for ch in added[:10]:
@@ -710,26 +688,26 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(txt, parse_mode='Markdown')
         return
 
-    # ── Car Photo Mode ─────────────────────────────────
+    # ── Car Photo Mode ──
     await update.message.reply_text("🔍 ပုံကို စစ်နေတယ်... Chassis ရှာနေတယ် ⏳")
 
-    chassis = extract_chassis_from_text(caption) if caption else None
-
-    price_match = re.search(r'(?<![A-Z0-9])(\d{4,6})(?![A-Z0-9])', caption.upper()) if caption else None
-    price = int(price_match.group(1)) if price_match else None
-
+    chassis      = extract_chassis_from_text(caption) if caption else None
+    price_match  = re.search(r'(?<![A-Z0-9])(\d{4,6})(?![A-Z0-9])', caption.upper()) if caption else None
+    price        = int(price_match.group(1)) if price_match else None
     gemini_model = ""
     gemini_color = ""
-    file_bytes = None
+    gemini_year  = 0  # ✅ year
+    file_bytes   = None
 
     if not chassis:
         try:
-            file = await photo.get_file()
+            file       = await photo.get_file()
             file_bytes = bytes(await file.download_as_bytearray())
-            result = await gemini_ocr_chassis(file_bytes)
-            chassis = result.get("chassis", "")
+            result     = await gemini_ocr_chassis(file_bytes)
+            chassis      = result.get("chassis", "")
             gemini_model = result.get("model", "")
             gemini_color = result.get("color", "")
+            gemini_year  = result.get("year", 0)  # ✅ year ထုတ်ယူ
         except Exception as e:
             logger.error(f"Photo download error: {e}")
 
@@ -742,98 +720,72 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if car and price:
         user_name = update.effective_user.first_name or "Unknown"
         await save_price(car['chassis'], car['model'], car['color'], car['year'], price, user_name, image_url)
-        txt = (
-            f"✅ *Auto ထည့်ပြီးပါပြီ!*\n\n"
-            f"🚗 {car['model']} ({car['year']})\n"
-            f"🔑 `{car['chassis']}`\n"
-            f"🎨 {car['color']}\n"
-            f"💰 ฿{price:,}\n\n"
-            f"🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)"
-        )
-        await update.message.reply_text(txt, parse_mode='Markdown')
+        year_str = str(car['year']) if car.get('year') and car['year'] != 0 else "—"
+        await update.message.reply_text(
+            f"✅ *Auto ထည့်ပြီးပါပြီ!*\n\n🚗 {car['model']} ({year_str})\n🔑 `{car['chassis']}`\n🎨 {car['color']}\n💰 ฿{price:,}\n\n🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)",
+            parse_mode='Markdown')
         await post_to_channel(context, car['chassis'], car['model'], car['color'], car['year'], price, image_url)
+
     elif car:
+        year_str = str(car['year']) if car.get('year') and car['year'] != 0 else "—"
         pending_photo[user_id] = {
             "chassis": car['chassis'], "model": car['model'],
-            "color": car['color'], "year": car['year'], "file_id": photo.file_id,
-            "image_url": image_url
+            "color": car['color'], "year": car['year'],
+            "file_id": photo.file_id, "image_url": image_url
         }
-        txt = (
-            f"🚗 ကားတွေ့ပြီ!\n\n"
-            f"*{car['model']}* ({car['year']})\n"
-            f"`{car['chassis']}`\n"
-            f"🎨 {car['color']}\n\n"
-            f"💰 ဈေး ရိုက်ထည့်ပါ (ဂဏန်းသာ):\nဥပမာ: `150000`"
-        )
-        await update.message.reply_text(txt, parse_mode='Markdown')
+        await update.message.reply_text(
+            f"🚗 ကားတွေ့ပြီ!\n\n*{car['model']}* ({year_str})\n`{car['chassis']}`\n🎨 {car['color']}\n\n💰 ဈေး ရိုက်ထည့်ပါ (ဂဏန်းသာ):\nဥပမာ: `150000`",
+            parse_mode='Markdown')
+
     elif chassis:
-        guessed_model = gemini_model if gemini_model else guess_model_from_chassis(chassis)
+        guessed_model = gemini_model or guess_model_from_chassis(chassis)
         if not guessed_model or guessed_model == "UNKNOWN":
             guessed_model = guess_model_from_chassis(chassis)
         display_color = gemini_color if gemini_color else "-"
+        display_year  = gemini_year if gemini_year and gemini_year != 0 else 0  # ✅ year သုံး
+        year_str      = str(display_year) if display_year != 0 else "—"
+
         if price:
             user_name = update.effective_user.first_name or "Unknown"
-            await save_price(chassis, guessed_model, display_color, 0, price, user_name, image_url)
-            txt = (
-                f"✅ *Auto ထည့်ပြီးပါပြီ!*\n\n"
-                f"🚗 {guessed_model}\n"
-                f"🔑 `{chassis}`\n"
-                f"🎨 {display_color}\n"
-                f"💰 ฿{price:,}\n\n"
-                f"🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)"
-            )
-            await update.message.reply_text(txt, parse_mode='Markdown')
-            await post_to_channel(context, chassis, guessed_model, display_color, 0, price, image_url)
+            await save_price(chassis, guessed_model, display_color, display_year, price, user_name, image_url)
+            await update.message.reply_text(
+                f"✅ *Auto ထည့်ပြီးပါပြီ!*\n\n🚗 {guessed_model} ({year_str})\n🔑 `{chassis}`\n🎨 {display_color}\n💰 ฿{price:,}\n\n🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)",
+                parse_mode='Markdown')
+            await post_to_channel(context, chassis, guessed_model, display_color, display_year, price, image_url)
         else:
             pending_photo[user_id] = {
                 "chassis": chassis, "model": guessed_model, "color": display_color,
-                "year": 0, "file_id": photo.file_id, "image_url": image_url
+                "year": display_year, "file_id": photo.file_id, "image_url": image_url
             }
             if guessed_model and guessed_model != "UNKNOWN":
-                txt = (
-                    f"⚠️ Checklist မှာ မပါဘူး\n\n"
-                    f"🚗 ခန့်မှန်း: *{guessed_model}*\n"
-                    f"🔑 `{chassis}`\n"
-                    f"🎨 {display_color}\n\n"
-                    f"💰 ဈေး ရိုက်ထည့်ပါ:\nဥပမာ: `150000`"
-                )
+                await update.message.reply_text(
+                    f"⚠️ Checklist မှာ မပါဘူး\n\n🚗 ခန့်မှန်း: *{guessed_model}* ({year_str})\n🔑 `{chassis}`\n🎨 {display_color}\n\n💰 ဈေး ရိုက်ထည့်ပါ:\nဥပမာ: `150000`",
+                    parse_mode='Markdown')
             else:
-                txt = (
-                    f"⚠️ Chassis တွေ့ပြီ: `{chassis}`\n"
-                    f"🎨 {display_color}\n"
-                    f"Checklist မှာ မပါဘူး — ဈေး ရိုက်ထည့်ပါ:\nဥပမာ: `150000`"
-                )
-            await update.message.reply_text(txt, parse_mode='Markdown')
+                await update.message.reply_text(
+                    f"⚠️ Chassis တွေ့ပြီ: `{chassis}`\n🎨 {display_color}\nChecklist မှာ မပါဘူး — ဈေး ရိုက်ထည့်ပါ:\nဥပမာ: `150000`",
+                    parse_mode='Markdown')
     else:
-        txt = (
-            "⚠️ Chassis ဖတ်မရပါ\n\n"
-            "💡 Gemini API limit ကုန်နေရင် Tesseract နဲ့ ကြိုးစားပြီးပါပြီ\n\n"
-            "ကိုယ်တိုင် ထည့်ပါ:\n"
-            "`/price [chassis] [ဈေး]`\n\n"
-            "ဥပမာ: `/price NT32-504837 150000`"
-        )
-        await update.message.reply_text(txt, parse_mode='Markdown')
+        await update.message.reply_text(
+            "⚠️ Chassis ဖတ်မရပါ\n\n💡 Gemini API limit ကုန်နေရင် Tesseract နဲ့ ကြိုးစားပြီးပါပြီ\n\nကိုယ်တိုင် ထည့်ပါ:\n`/price [chassis] [ဈေး]`\n\nဥပမာ: `/price NT32-504837 150000`",
+            parse_mode='Markdown')
 
 # ── Text Handler ──────────────────────────────────────
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    text = update.message.text.strip()
+    text    = update.message.text.strip()
 
     if user_id in pending_photo:
-        price_match = re.match(r'^[\d,]+$', text.replace(' ', ''))
-        if price_match:
+        if re.match(r'^[\d,]+$', text.replace(' ', '')):
             try:
-                price = int(text.replace(',', '').replace(' ', ''))
-                data = pending_photo.pop(user_id)
+                price     = int(text.replace(',', '').replace(' ', ''))
+                data      = pending_photo.pop(user_id)
                 user_name = update.effective_user.first_name or "Unknown"
                 await save_price(data['chassis'], data['model'], data['color'], data['year'], price, user_name, data.get('image_url', ''))
-                txt = (
-                    f"✅ *ဈေးထည့်ပြီးပါပြီ!*\n\n"
-                    f"🚗 {data['model']} — `{data['chassis']}`\n"
-                    f"💰 ฿{price:,}\n\n"
-                    f"🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)"
-                )
-                await update.message.reply_text(txt, parse_mode='Markdown')
+                year_str = str(data['year']) if data.get('year') and data['year'] != 0 else "—"
+                await update.message.reply_text(
+                    f"✅ *ဈေးထည့်ပြီးပါပြီ!*\n\n🚗 {data['model']} ({year_str}) — `{data['chassis']}`\n💰 ฿{price:,}\n\n🌐 [Web မှာကြည့်](https://kyawmintun08.github.io/Japan-Auction-Car-Checker/)",
+                    parse_mode='Markdown')
                 await post_to_channel(context, data['chassis'], data['model'], data['color'], data['year'], price, data.get('image_url', ''))
                 return
             except:
@@ -843,27 +795,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chassis:
         car = find_by_chassis(chassis)
         if car:
-            history = get_price_history(car['chassis'])
+            history      = get_price_history(car['chassis'])
             latest_price = history[-1]['price'] if history else None
-            txt = format_car_info(car, latest_price, history if history else None)
-            keyboard = [[InlineKeyboardButton("💰 ဈေးထည့်", callback_data=f"addprice_{car['chassis']}")]]
-            await update.message.reply_text(txt, parse_mode='Markdown',
-                                            reply_markup=InlineKeyboardMarkup(keyboard))
+            txt          = format_car_info(car, latest_price, history if history else None)
+            keyboard     = [[InlineKeyboardButton("💰 ဈေးထည့်", callback_data=f"addprice_{car['chassis']}")]]
+            await update.message.reply_text(txt, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
             guessed = guess_model_from_chassis(chassis)
             if guessed == "UNKNOWN":
                 guessed = await guess_model_from_chassis_gemini(chassis)
-            if guessed != "UNKNOWN":
-                txt = (
-                    f"⚠️ `{chassis}` Checklist မှာ မပါဘူး\n"
-                    f"🚗 ခန့်မှန်း Model: *{guessed}*\n\n"
-                    f"ဈေးထည့်လိုရင် `/price {chassis} [ဈေး]`"
-                )
-            else:
-                txt = (
-                    f"⚠️ `{chassis}` Checklist မှာ မပါဘူး\n\n"
-                    f"ဈေးထည့်လိုရင် `/price {chassis} [ဈေး]`"
-                )
+            txt = (
+                f"⚠️ `{chassis}` Checklist မှာ မပါဘူး\n🚗 ခန့်မှန်း Model: *{guessed}*\n\nဈေးထည့်လိုရင် `/price {chassis} [ဈေး]`"
+                if guessed != "UNKNOWN"
+                else f"⚠️ `{chassis}` Checklist မှာ မပါဘူး\n\nဈေးထည့်လိုရင် `/price {chassis} [ဈေး]`"
+            )
             await update.message.reply_text(txt, parse_mode='Markdown')
 
 # ── Callback Handler ───────────────────────────────────
@@ -873,14 +818,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data.startswith("addprice_"):
         chassis = query.data.replace("addprice_", "")
         user_id = query.from_user.id
-        car = find_by_chassis(chassis)
+        car     = find_by_chassis(chassis)
         if car:
             pending_photo[user_id] = {
                 "chassis": car['chassis'], "model": car['model'],
                 "color": car['color'], "year": car['year'], "file_id": None
             }
-        await query.message.reply_text(
-            f"💰 `{chassis}` ဈေး ရိုက်ထည့်ပါ:\nဥပမာ: `150000`", parse_mode='Markdown')
+        await query.message.reply_text(f"💰 `{chassis}` ဈေး ရိုက်ထည့်ပါ:\nဥပမာ: `150000`", parse_mode='Markdown')
 
 # ── Membership Commands ────────────────────────────────
 async def approve_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -903,33 +847,29 @@ async def approve_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     days = months * 30
 
-    # ✅ BUG FIX: UserID နဲ့ Username မှန်ကန်အောင် fix လုပ်ထားတယ်
+    # ✅ BUG FIX: member_id=0 falsy bug — None သုံးပြင်ထားတယ်
     try:
-        member_id = int(username_or_id)
-        member_username = username_or_id  # numeric ID ဆိုရင် ID ကိုပဲ username အဖြစ် သုံး
+        member_id       = int(username_or_id)
+        member_username = username_or_id
     except ValueError:
-        member_id = None
-        member_username = username_or_id  # username string ဆိုရင် သူ့အတိုင်း သုံး
+        member_id       = None
+        member_username = username_or_id
 
-    # Save to Sheet
     try:
         async with httpx.AsyncClient() as client:
             await client.post(SHEET_WEBHOOK, json={
-                "action": "saveMember",
-                "userId": str(member_id) if member_id is not None else username_or_id,
+                "action":   "saveMember",
+                "userId":   str(member_id) if member_id is not None else username_or_id,
                 "username": member_username,
-                "days": days
+                "days":     days
             }, timeout=10, follow_redirects=True)
     except Exception as e:
         logger.error(f"saveMember error: {e}")
 
-    # Generate invite link
     try:
-        invite = await context.bot.create_chat_invite_link(
-            chat_id=CHANNEL_ID,
-            member_limit=1,
-            expire_date=int((__import__('time').time()) + days * 86400)
-        )
+        invite     = await context.bot.create_chat_invite_link(
+            chat_id=CHANNEL_ID, member_limit=1,
+            expire_date=int((__import__('time').time()) + days * 86400))
         invite_url = invite.invite_link
     except Exception as e:
         invite_url = None
@@ -953,19 +893,17 @@ async def members_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(SHEET_WEBHOOK, json={"action": "getMembers"}, timeout=10, follow_redirects=True)
-            data = resp.json()
-            members = data.get("members", [])
+            resp    = await client.post(SHEET_WEBHOOK, json={"action": "getMembers"}, timeout=10, follow_redirects=True)
+            members = resp.json().get("members", [])
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
         return
     if not members:
         await update.message.reply_text("👥 Member မရှိသေးဘူး")
         return
-    active = [m for m in members if m['status'] == 'ACTIVE']
+    active  = [m for m in members if m['status'] == 'ACTIVE']
     expired = [m for m in members if m['status'] == 'EXPIRED']
-    txt = f"👥 *Members စာရင်း*\n✅ Active: {len(active)} | ❌ Expired: {len(expired)}\n\n"
-    txt += "*✅ Active:*\n"
+    txt = f"👥 *Members စာရင်း*\n✅ Active: {len(active)} | ❌ Expired: {len(expired)}\n\n*✅ Active:*\n"
     for m in active:
         txt += f"• @{m['username']} — ကုန်: `{m['expireDate']}`\n"
     if expired:
@@ -991,18 +929,17 @@ async def kick_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def check_expired_members(context):
-    """Auto kick expired members - runs every 12 hours"""
+    """Auto kick expired members every 12 hours"""
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(SHEET_WEBHOOK, json={"action": "getMembers"}, timeout=10, follow_redirects=True)
-            data = resp.json()
-            members = data.get("members", [])
+            resp    = await client.post(SHEET_WEBHOOK, json={"action": "getMembers"}, timeout=10, follow_redirects=True)
+            members = resp.json().get("members", [])
         for m in members:
             if m['status'] == 'EXPIRED' and m['userId'].isdigit():
                 try:
                     await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=int(m['userId']))
                     await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=int(m['userId']))
-                    logger.info(f"Auto kicked expired member: {m['username']}")
+                    logger.info(f"Auto kicked: {m['username']}")
                 except Exception as e:
                     logger.error(f"Auto kick error {m['username']}: {e}")
     except Exception as e:
@@ -1012,37 +949,27 @@ async def check_expired_members(context):
 async def main():
     logger.info("Bot starting...")
     async with httpx.AsyncClient() as client:
-        await client.post(
-            f"https://api.telegram.org/bot{TOKEN}/deleteWebhook",
-            params={"drop_pending_updates": True}
-        )
+        await client.post(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook", params={"drop_pending_updates": True})
 
     app = Application.builder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("find", find_car))
-    app.add_handler(CommandHandler("model", find_model))
-    app.add_handler(CommandHandler("price", add_price))
+    app.add_handler(CommandHandler("start",   start))
+    app.add_handler(CommandHandler("find",    find_car))
+    app.add_handler(CommandHandler("model",   find_model))
+    app.add_handler(CommandHandler("price",   add_price))
     app.add_handler(CommandHandler("history", price_history))
-    app.add_handler(CommandHandler("list", list_cars))
-    app.add_handler(CommandHandler("web", web_link))
+    app.add_handler(CommandHandler("list",    list_cars))
+    app.add_handler(CommandHandler("web",     web_link))
     app.add_handler(CommandHandler("approve", approve_member))
     app.add_handler(CommandHandler("members", members_list))
-    app.add_handler(CommandHandler("kick", kick_member))
+    app.add_handler(CommandHandler("kick",    kick_member))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CallbackQueryHandler(button_callback))
-
-    # Auto check expired members every 12 hours
     app.job_queue.run_repeating(check_expired_members, interval=43200, first=60)
 
     await app.initialize()
     await app.start()
-    await app.updater.start_polling(
-        drop_pending_updates=True,
-        allowed_updates=Update.ALL_TYPES
-    )
-
+    await app.updater.start_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
     logger.info("Bot is polling now!")
     await asyncio.Event().wait()
 
