@@ -308,13 +308,43 @@ canvas{width:100%!important;max-height:200px}
   <div class="section-card">
     <div class="section-title">📊 Analysis</div>
     <div class="analysis-grid" id="analysisGrid"></div>
-    <div class="chart-container">
-      <div class="chart-label">🏆 Model အလိုက် ပျမ်းမျှ ဈေး (Top 10)</div>
-      <canvas id="modelChart"></canvas>
+
+    <!-- Sub-tabs -->
+    <div style="display:flex;gap:8px;margin:12px 0">
+      <button id="atab-model" class="tab-btn" style="flex:1;padding:8px 4px;font-size:12px;background:var(--gold);color:#000;border-color:var(--gold)" onclick="switchAnalysisTab('model')">📈 Model ဈေး</button>
+      <button id="atab-monthly" class="tab-btn" style="flex:1;padding:8px 4px;font-size:12px" onclick="switchAnalysisTab('monthly')">📅 Monthly Sales</button>
+      <button id="atab-gate" class="tab-btn" style="flex:1;padding:8px 4px;font-size:12px" onclick="switchAnalysisTab('gate')">📍 Gate</button>
     </div>
-    <div class="chart-container">
-      <div class="chart-label">📍 Gate အလိုက် ကားအရေအတွက်</div>
-      <canvas id="gateChart"></canvas>
+
+    <!-- Model avg chart -->
+    <div id="apanel-model">
+      <div class="chart-container">
+        <div class="chart-label">🏆 Model အလိုက် ပျမ်းမျှ ဈေး (Top 10)</div>
+        <canvas id="modelChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Monthly Sales panel -->
+    <div id="apanel-monthly" style="display:none">
+      <div class="chart-container">
+        <div class="chart-label" style="margin-bottom:8px">📅 လတိုင်း အရောင်းရဆုံး Model</div>
+        <select class="inp" id="monthlYearSel" onchange="renderMonthlySales()" style="margin-bottom:10px;font-size:12px">
+          <option value="">-- နှစ် ရွေးပါ --</option>
+        </select>
+        <div id="monthlySalesList"></div>
+      </div>
+      <div class="chart-container" style="margin-top:10px">
+        <div class="chart-label">📈 လတိုင်း ဈေးနှုန်းပြောင်းလဲမှု</div>
+        <canvas id="monthlyTrendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Gate chart -->
+    <div id="apanel-gate" style="display:none">
+      <div class="chart-container">
+        <div class="chart-label">📍 Gate အလိုက် ကားအရေအတွက်</div>
+        <canvas id="gateChart"></canvas>
+      </div>
     </div>
   </div>
 </div>
@@ -359,7 +389,7 @@ canvas{width:100%!important;max-height:200px}
 // DATA
 // ═══════════════════════════════════════
 const WEBHOOK = 'https://script.google.com/macros/s/AKfycbx0VnduD1ARzD22RerXiH68H1capsP79DnOPauS6qHkV8K7RMwcf0_EREx5XFmE3UwT/exec';
-const ADMIN_PW = 'janjapan2026';
+const ADMIN_PW = 'KMTAuction#26';
 
 const CARS = [
   // MaeSot
@@ -666,8 +696,14 @@ function renderCarList() {
     const priceTd = p
       ? `<span class="price-text">฿${Number(p.price).toLocaleString()}</span>`
       : `<span style="color:var(--muted);font-size:11px">—</span>`;
+    const imgHtml = p && p.image_url
+      ? `<img src="${p.image_url}" alt="${car.chassis}"
+           style="width:100%;border-radius:8px;margin-top:6px;max-height:140px;object-fit:cover;cursor:pointer"
+           onclick="window.open('${p.image_url}','_blank')"
+           onerror="this.style.display='none'">`
+      : '';
     return `<tr>
-      <td class="chassis-text">${car.chassis}</td>
+      <td class="chassis-text">${car.chassis}${imgHtml}</td>
       <td class="model-text">${car.model}</td>
       <td style="font-size:11px;color:var(--muted)">${car.color}</td>
       <td style="font-size:12px">${car.year||'—'}</td>
@@ -764,6 +800,18 @@ function renderChart() {
 // HISTORY
 // ═══════════════════════════════════════
 function renderHistory() {
+  // ✅ Password မဝင်ရသေးရင် lock ပြ
+  if(!isAdmin) {
+    document.getElementById('histList').innerHTML = `
+      <div style="text-align:center;padding:40px 20px">
+        <div style="font-size:48px;margin-bottom:12px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:var(--gold);margin-bottom:8px">Admin Login လိုအပ်သည်</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px">ဈေးနှုန်းမှတ်တမ်းကြည့်ရန် Login ဝင်ပါ</div>
+        <button class="btn btn-login" onclick="toggleAuth()" style="margin:0 auto">🔑 Login ဝင်ရန်</button>
+      </div>`;
+    document.getElementById('histPager').innerHTML = '';
+    return;
+  }
   const search   = document.getElementById('histSearch').value.toUpperCase();
   const modelDrop = document.getElementById('histModelDrop').value.toUpperCase();
   const yearDrop  = document.getElementById('histYear').value;
@@ -823,6 +871,141 @@ function renderHistory() {
   }).join('');
 
   renderPager('histPager', page, total, p => { hPage = p; renderHistory(); });
+}
+
+// ═══════════════════════════════════════
+// ANALYSIS SUB-TABS
+// ═══════════════════════════════════════
+let curAnalysisTab = 'model';
+let monthlyTrendInst = null;
+
+function switchAnalysisTab(name) {
+  curAnalysisTab = name;
+  ['model','monthly','gate'].forEach(t => {
+    const btn   = document.getElementById('atab-'+t);
+    const panel = document.getElementById('apanel-'+t);
+    if(t === name) {
+      btn.style.background   = 'var(--gold)';
+      btn.style.color        = '#000';
+      btn.style.borderColor  = 'var(--gold)';
+      panel.style.display    = '';
+    } else {
+      btn.style.background   = 'var(--card)';
+      btn.style.color        = 'var(--muted)';
+      btn.style.borderColor  = 'var(--border)';
+      panel.style.display    = 'none';
+    }
+  });
+  if(name === 'monthly') renderMonthlySales();
+}
+
+function renderMonthlySales() {
+  if(!priceData.length) return;
+
+  // Year list ဖြည့်
+  const years = [...new Set(priceData.map(p => {
+    if(!p.date) return null;
+    const parts = p.date.split('/');
+    return parts.length === 3 ? parts[2] : null;
+  }).filter(Boolean))].sort().reverse();
+
+  const sel = document.getElementById('monthlYearSel');
+  if(sel.options.length <= 1) {
+    years.forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      sel.appendChild(opt);
+    });
+    if(years.length) sel.value = years[0];
+  }
+  const selYear = sel.value || (years[0] || '');
+
+  // လတိုင်း data group
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthData = {}; // { 'MM': { model: count } }
+
+  priceData.forEach(p => {
+    if(!p.date) return;
+    const parts = p.date.split('/');
+    if(parts.length !== 3) return;
+    const [dd, mm, yyyy] = parts;
+    if(selYear && yyyy !== selYear) return;
+    const key = mm;
+    if(!monthData[key]) monthData[key] = {};
+    const m = p.model || 'UNKNOWN';
+    monthData[key][m] = (monthData[key][m] || 0) + 1;
+  });
+
+  // Monthly list render
+  const listEl = document.getElementById('monthlySalesList');
+  const sortedMonths = Object.keys(monthData).sort();
+
+  if(!sortedMonths.length) {
+    listEl.innerHTML = `<div style="color:var(--muted);text-align:center;padding:20px">Data မရှိသေး</div>`;
+    return;
+  }
+
+  listEl.innerHTML = sortedMonths.map(mm => {
+    const mIdx    = parseInt(mm) - 1;
+    const mName   = MONTHS[mIdx] || mm;
+    const models  = monthData[mm];
+    const sorted  = Object.entries(models).sort((a,b) => b[1]-a[1]);
+    const total   = sorted.reduce((s,[,c]) => s+c, 0);
+    const top3    = sorted.slice(0,3);
+
+    const bars = top3.map(([model, count], i) => {
+      const pct    = Math.round((count/total)*100);
+      const colors = ['#f59e0b','#3b82f6','#10b981'];
+      return `<div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+          <span style="color:var(--text);font-weight:600">${model}</span>
+          <span style="color:${colors[i]}">${count} စီး (${pct}%)</span>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:6px">
+          <div style="background:${colors[i]};width:${pct}%;height:6px;border-radius:4px;transition:width 0.5s"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:var(--card2);border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:14px;font-weight:700;color:var(--gold)">📅 ${mName} ${selYear}</span>
+        <span style="font-size:11px;color:var(--muted);background:var(--card);padding:3px 8px;border-radius:12px">${total} စီး</span>
+      </div>
+      ${bars}
+    </div>`;
+  }).join('');
+
+  // Trend chart (လတိုင်း ရောင်းစုစုပေါင်း)
+  const trendLabels = sortedMonths.map(mm => MONTHS[parseInt(mm)-1] || mm);
+  const trendData   = sortedMonths.map(mm => Object.values(monthData[mm]).reduce((a,b)=>a+b,0));
+
+  const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+  if(monthlyTrendInst) monthlyTrendInst.destroy();
+  monthlyTrendInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: trendLabels,
+      datasets: [{
+        label: 'ရောင်းစုစုပေါင်း (စီး)',
+        data: trendData,
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.15)',
+        tension: 0.4,
+        fill: true,
+        pointBackgroundColor: '#f59e0b',
+        pointRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#e2e8f0', font: {size:11} } } },
+      scales: {
+        x: { ticks: { color:'#94a3b8', font:{size:10} }, grid: { color:'#1a2234' } },
+        y: { ticks: { color:'#94a3b8', font:{size:10}, stepSize:1 }, grid: { color:'#1a2234' } }
+      }
+    }
+  });
 }
 
 // ═══════════════════════════════════════
@@ -951,6 +1134,7 @@ function toggleAuth() {
     localStorage.removeItem('isAdmin');
     updateAuthBtn();
     renderCarList();
+    renderHistory();
   } else {
     document.getElementById('loginModal').classList.add('show');
     document.getElementById('loginErr').textContent='';
@@ -965,6 +1149,7 @@ function doLogin() {
     updateAuthBtn();
     document.getElementById('loginModal').classList.remove('show');
     renderCarList();
+    renderHistory();
   } else {
     document.getElementById('loginErr').textContent = '❌ Password မှားတယ်';
   }
