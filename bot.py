@@ -33,20 +33,21 @@ CLOUDINARY_API_KEY    = os.environ.get('CLOUDINARY_API_KEY', '')
 CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
 
 # ── Membership Plan Pricing (ks) ──────────────────────
-PLAN_CH_1M  = int(os.environ.get('PLAN_CH_1M',  '1000'))
-PLAN_CH_3M  = int(os.environ.get('PLAN_CH_3M',  '2500'))
-PLAN_CH_6M  = int(os.environ.get('PLAN_CH_6M',  '4500'))
-PLAN_WEB_1M = int(os.environ.get('PLAN_WEB_1M', '1500'))
-PLAN_WEB_3M = int(os.environ.get('PLAN_WEB_3M', '4000'))
-PLAN_WEB_6M = int(os.environ.get('PLAN_WEB_6M', '7500'))
+PLAN_CH_1M  = int(os.environ.get('PLAN_CH_1M',  '15000'))
+PLAN_CH_2M  = int(os.environ.get('PLAN_CH_2M',  '30000'))
+PLAN_CH_3M  = int(os.environ.get('PLAN_CH_3M',  '40000'))
+PLAN_CH_5M  = int(os.environ.get('PLAN_CH_5M',  '70000'))
+PLAN_WEB_1M = int(os.environ.get('PLAN_WEB_1M', '20000'))
+PLAN_WEB_2M = int(os.environ.get('PLAN_WEB_2M', '40000'))
+PLAN_WEB_3M = int(os.environ.get('PLAN_WEB_3M', '45000'))
 PAYMENT_INFO = os.environ.get('PAYMENT_INFO', 'KPay / Wave: ဆက်သွယ်ရန် @' + ADMIN_USERNAME)
 
 LOC_MAESOT = "MaeSot Freezone"
 LOC_KLANG9 = "Klang9 Freezone"
 
 PLAN_PRICES = {
-    "CH":  {1: PLAN_CH_1M,  3: PLAN_CH_3M,  6: PLAN_CH_6M},
-    "WEB": {1: PLAN_WEB_1M, 3: PLAN_WEB_3M, 6: PLAN_WEB_6M},
+    "CH":  {1: PLAN_CH_1M,  2: PLAN_CH_2M,  3: PLAN_CH_3M,  5: PLAN_CH_5M},
+    "WEB": {1: PLAN_WEB_1M, 2: PLAN_WEB_2M, 3: PLAN_WEB_3M},
 }
 PLAN_NAMES = {
     "CH":  "📱 Channel Only",
@@ -676,12 +677,21 @@ def build_package_keyboard(user_id: int, action: str = "renew"):
 
 def build_period_keyboard(user_id: int, package: str):
     prices = PLAN_PRICES[package]
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"1 လ — {prices[1]:,} ks",  callback_data=f"period_{package}_1_{user_id}"),
-         InlineKeyboardButton(f"3 လ — {prices[3]:,} ks",  callback_data=f"period_{package}_3_{user_id}"),
-         InlineKeyboardButton(f"6 လ — {prices[6]:,} ks",  callback_data=f"period_{package}_6_{user_id}")],
-        [InlineKeyboardButton("◀️ နောက်သို့",             callback_data=f"pkg_back_{user_id}")],
-    ])
+    if package == "CH":
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"1 လ — {prices[1]:,} ks",  callback_data=f"period_{package}_1_{user_id}"),
+             InlineKeyboardButton(f"2 လ — {prices[2]:,} ks",  callback_data=f"period_{package}_2_{user_id}")],
+            [InlineKeyboardButton(f"3 လ — {prices[3]:,} ks",  callback_data=f"period_{package}_3_{user_id}"),
+             InlineKeyboardButton(f"5 လ — {prices[5]:,} ks",  callback_data=f"period_{package}_5_{user_id}")],
+            [InlineKeyboardButton("◀️ နောက်သို့",             callback_data=f"pkg_back_{user_id}")],
+        ])
+    else:  # WEB
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"1 လ — {prices[1]:,} ks",  callback_data=f"period_{package}_1_{user_id}"),
+             InlineKeyboardButton(f"2 လ — {prices[2]:,} ks",  callback_data=f"period_{package}_2_{user_id}"),
+             InlineKeyboardButton(f"3 လ — {prices[3]:,} ks",  callback_data=f"period_{package}_3_{user_id}")],
+            [InlineKeyboardButton("◀️ နောက်သို့",             callback_data=f"pkg_back_{user_id}")],
+        ])
 
 async def renew_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user    = update.effective_user
