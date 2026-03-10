@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>JAN JAPAN — Auction Car Intelligence</title>
+<title>Japan Auction Car Checker</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
@@ -128,8 +128,9 @@ select:focus{border-color:var(--primary);}
 
 <aside class="sidebar">
   <div class="sidebar-logo">
-    <div class="logo-text">JAN<span>JAPAN</span></div>
-    <div class="logo-sub">Auction Intelligence</div>
+    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Japan Auction</div>
+    <div class="logo-text">Car <span>Checker</span></div>
+    <div class="logo-sub">MaeSot & Klang9 • Live Data</div>
   </div>
   <div class="sidebar-section">
     <div class="sidebar-label">Main</div>
@@ -185,7 +186,7 @@ select:focus{border-color:var(--primary);}
     <div class="tab-content active" id="tab-dashboard">
       <div class="kpi-grid">
         <div class="kpi-card" style="--ac:var(--primary)"><div class="kpi-icon" style="background:var(--primary-light)">🚗</div><div class="kpi-label">Total Cars</div><div class="kpi-value" id="k-total">—</div><div class="kpi-sub" id="k-today">Loading...</div></div>
-        <div class="kpi-card" style="--ac:var(--success)"><div class="kpi-icon" style="background:var(--success-light)">💴</div><div class="kpi-label">Avg Price</div><div class="kpi-value" id="k-avg">—</div><div class="kpi-sub" id="k-priced" style="color:var(--text-muted)">—</div></div>
+        <div class="kpi-card" style="--ac:var(--success)"><div class="kpi-icon" style="background:var(--success-light)">🪙</div><div class="kpi-label">Avg Price (THB)</div><div class="kpi-value" id="k-avg">—</div><div class="kpi-sub" id="k-priced" style="color:var(--text-muted)">—</div></div>
         <div class="kpi-card" style="--ac:var(--warning)"><div class="kpi-icon" style="background:#FFF4E6">🏆</div><div class="kpi-label">Top Model</div><div class="kpi-value" id="k-topmodel" style="font-size:18px">—</div><div class="kpi-sub" id="k-topcount">—</div></div>
         <div class="kpi-card" style="--ac:var(--danger)"><div class="kpi-icon" style="background:#FEF2F2">📍</div><div class="kpi-label">Locations</div><div class="kpi-value" id="k-locs">—</div><div class="kpi-sub" style="color:var(--text-muted)">Auction sites</div></div>
       </div>
@@ -262,6 +263,13 @@ select:focus{border-color:var(--primary);}
 
     <!-- MEMBERS -->
     <div class="tab-content" id="tab-members">
+      <div style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px">👥</div>
+        <div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#fff">Member Activity Tracker</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px">Google Sheet ထဲမှာ "Added By" column ကနေ ဘယ် member က ကားဘယ်နှစ်စီး ထည့်တယ်ဆိုတာ track လုပ်တယ်</div>
+        </div>
+      </div>
       <div class="card" style="margin-bottom:20px">
         <div class="card-header"><div class="card-title">Active Members</div><span style="font-size:12px;color:var(--text-muted)" id="memberCount"></span></div>
         <div class="card-body"><div class="mgrid" id="membersGrid"><div class="empty"><div class="ei">👥</div><p>Loading...</p></div></div></div>
@@ -290,6 +298,17 @@ async function fetchSheet(tab) {
   }).filter(r => Object.values(r).some(v => v!==''&&v!==null));
 }
 
+// Convert Google Drive share URL → direct embed URL
+function fixImgUrl(url) {
+  if (!url || url.trim() === '') return '';
+  // Format: https://drive.google.com/file/d/FILE_ID/view
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
+  // Already direct or other URL
+  if (url.startsWith('http')) return url;
+  return '';
+}
+
 async function init() {
   try {
     const raw = await fetchSheet('Sheet1');
@@ -302,7 +321,7 @@ async function init() {
       price:    parseInt(String(r['Price']||r[Object.keys(r)[5]]||0).replace(/[^0-9]/g,''))||0,
       location: String(r['Location']||r[Object.keys(r)[6]]||'-').trim(),
       addedBy:  String(r['Added By']||r[Object.keys(r)[7]]||'-').trim(),
-      imageUrl: String(r['Image URL']||r[Object.keys(r)[8]]||'')
+      imageUrl: fixImgUrl(String(r['Image URL']||r[Object.keys(r)[8]]||''))
     })).filter(r => r.chassis||r.model);
 
     document.getElementById('liveCount').textContent = allCars.length;
@@ -323,7 +342,7 @@ function renderDashboard() {
   document.getElementById('k-total').textContent = allCars.length.toLocaleString();
   const priced = allCars.filter(c=>c.price>0);
   const avg = priced.length ? Math.round(priced.reduce((s,c)=>s+c.price,0)/priced.length) : 0;
-  document.getElementById('k-avg').textContent = avg ? '¥'+avg.toLocaleString() : 'N/A';
+  document.getElementById('k-avg').textContent = avg ? '฿'+avg.toLocaleString() : 'N/A';
   document.getElementById('k-priced').textContent = priced.length + ' cars with price';
   const locs = new Set(allCars.map(c=>c.location).filter(l=>l&&l!=='-'));
   document.getElementById('k-locs').textContent = locs.size;
@@ -362,7 +381,7 @@ function renderDashboard() {
       <td><strong>${c.model}</strong></td>
       <td>${c.color}</td>
       <td>${c.year||'-'}</td>
-      <td style="font-weight:700;color:var(--primary)">${c.price>0?'¥'+c.price.toLocaleString():'-'}</td>
+      <td style="font-weight:700;color:var(--primary)">${c.price>0?'฿'+c.price.toLocaleString():'-'}</td>
       <td>${c.location}</td>
       <td><span class="badge bb">${c.addedBy}</span></td>
     </tr>`).join('');
@@ -407,7 +426,7 @@ function renderExplorer() {
           ${c.color!=='-'?`<span class="car-spec">🎨 ${c.color}</span>`:''}
         </div>
         <div class="car-footer">
-          <div><div class="car-price">${c.price>0?'¥'+c.price.toLocaleString():'N/A'}</div><div style="font-size:11px;color:var(--text-muted)">${c.date}</div></div>
+          <div><div class="car-price">${c.price>0?'฿'+c.price.toLocaleString():'N/A'}</div><div style="font-size:11px;color:var(--text-muted)">${c.date}</div></div>
           <button class="btn btn-primary btn-sm" onclick="goLookup('${c.chassis}')">View</button>
         </div>
       </div>
@@ -421,9 +440,9 @@ function renderPrice() {
   document.getElementById('pa-cnt').textContent = pr.length;
   if(!ps.length) return;
   const avg=Math.round(ps.reduce((a,b)=>a+b,0)/ps.length), min=Math.min(...ps), max=Math.max(...ps);
-  document.getElementById('pa-avg').textContent='¥'+avg.toLocaleString();
-  document.getElementById('pa-min').textContent='¥'+min.toLocaleString();
-  document.getElementById('pa-max').textContent='¥'+max.toLocaleString();
+  document.getElementById('pa-avg').textContent='฿'+avg.toLocaleString();
+  document.getElementById('pa-min').textContent='฿'+min.toLocaleString();
+  document.getElementById('pa-max').textContent='฿'+max.toLocaleString();
   const minC=pr.find(c=>c.price===min), maxC=pr.find(c=>c.price===max);
   if(minC) document.getElementById('pa-minm').textContent=minC.model;
   if(maxC) document.getElementById('pa-maxm').textContent=maxC.model;
@@ -436,7 +455,7 @@ function renderPrice() {
   charts.priceModel = new Chart(document.getElementById('priceModelChart'),{
     type:'bar',
     data:{labels:avgs.map(a=>a[0]),datasets:[{label:'Avg Price',data:avgs.map(a=>a[1]),backgroundColor:avgs.map((_,i)=>COLORS[i%5]),borderRadius:5}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'¥'+v.toLocaleString(),font:{family:'DM Sans'}},grid:{color:'#E8ECF4'}},x:{grid:{display:false},ticks:{font:{family:'DM Sans',size:11},maxRotation:35}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'฿'+v.toLocaleString(),font:{family:'DM Sans'}},grid:{color:'#E8ECF4'}},x:{grid:{display:false},ticks:{font:{family:'DM Sans',size:11},maxRotation:35}}}}
   });
 
   const buckets=[0,50000,100000,200000,500000,1000000,Infinity];
@@ -452,7 +471,7 @@ function renderPrice() {
   });
 
   document.getElementById('priceTbl').innerHTML = Object.entries(mp).map(([m,t])=>({m,cnt:mc2[m],avg:Math.round(t/mc2[m]),min:Math.min(...pr.filter(c=>c.model===m).map(c=>c.price)),max:Math.max(...pr.filter(c=>c.model===m).map(c=>c.price))})).sort((a,b)=>b.cnt-a.cnt).map(r=>`
-    <tr><td><strong>${r.m}</strong></td><td>${r.cnt}</td><td style="font-weight:700;color:var(--primary)">¥${r.avg.toLocaleString()}</td><td>¥${r.min.toLocaleString()}</td><td>¥${r.max.toLocaleString()}</td></tr>`).join('');
+    <tr><td><strong>${r.m}</strong></td><td>${r.cnt}</td><td style="font-weight:700;color:var(--primary)">฿${r.avg.toLocaleString()}</td><td>฿${r.min.toLocaleString()}</td><td>฿${r.max.toLocaleString()}</td></tr>`).join('');
 }
 
 function renderChassisTbl(filter='') {
@@ -461,7 +480,7 @@ function renderChassisTbl(filter='') {
     <tr onclick="goLookup('${c.chassis}')" style="cursor:pointer">
       <td style="font-family:monospace;font-size:12px;font-weight:600">${c.chassis}</td>
       <td><strong>${c.model}</strong></td><td>${c.color}</td><td>${c.year||'-'}</td>
-      <td style="font-weight:700;color:var(--primary)">${c.price>0?'¥'+c.price.toLocaleString():'-'}</td>
+      <td style="font-weight:700;color:var(--primary)">${c.price>0?'฿'+c.price.toLocaleString():'-'}</td>
       <td>${c.date}</td><td>${c.location}</td>
     </tr>`).join('');
 }
@@ -474,23 +493,35 @@ function lookupChassis() {
   const car=allCars.find(c=>c.chassis.toUpperCase().includes(v.toUpperCase()));
   const el=document.getElementById('chassisResult');
   if(car){
+    const imgSection = car.imageUrl
+      ? `<div style="padding:0;border-top:1px solid var(--border);background:#000;display:flex;justify-content:center;max-height:260px;overflow:hidden">
+           <img src="${car.imageUrl}" style="max-height:260px;width:100%;object-fit:contain;border-radius:0"
+             onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:#666;background:var(--gray1)>📷 ကားပုံ မရှိသေးဘူး</div>'">
+         </div>`
+      : `<div style="padding:20px;text-align:center;color:var(--text-muted);background:var(--gray1);border-top:1px solid var(--border)">
+           <div style="font-size:40px;margin-bottom:6px">🚗</div>
+           <div style="font-size:12px">ဒီကားအတွက် ပုံမရှိသေးဘူး</div>
+         </div>`;
     el.innerHTML=`<div style="background:var(--white);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:4px">
       <div style="background:var(--primary);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between">
-        <div><div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700">${car.chassis} — ${car.model}</div><div style="font-size:12px;opacity:0.85;margin-top:2px">Found in Sheet · ${car.date}</div></div>
+        <div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700">${car.chassis} — ${car.model}</div>
+          <div style="font-size:12px;opacity:0.85;margin-top:2px">✅ Found in Sheet · ${car.date}</div>
+        </div>
         <span class="badge" style="background:rgba(255,255,255,0.2);color:#fff">${car.location}</span>
       </div>
+      ${imgSection}
       <div class="detail-grid">
         <div class="di"><div class="dk">Model</div><div class="dv">${car.model}</div></div>
         <div class="di"><div class="dk">Color</div><div class="dv">${car.color}</div></div>
         <div class="di"><div class="dk">Year</div><div class="dv">${car.year||'-'}</div></div>
-        <div class="di"><div class="dk">Price</div><div class="dv" style="color:var(--primary);font-weight:700">${car.price>0?'¥'+car.price.toLocaleString():'Not listed'}</div></div>
+        <div class="di"><div class="dk">Price (THB)</div><div class="dv" style="color:var(--primary);font-weight:700">${car.price>0?'฿'+car.price.toLocaleString():'Not listed'}</div></div>
         <div class="di"><div class="dk">Location</div><div class="dv">${car.location}</div></div>
         <div class="di"><div class="dk">Added By</div><div class="dv">${car.addedBy}</div></div>
       </div>
-      ${car.imageUrl?`<div style="padding:16px;border-top:1px solid var(--border)"><img src="${car.imageUrl}" style="max-height:200px;border-radius:8px;max-width:100%;object-fit:cover"></div>`:''}
     </div>`;
   } else {
-    el.innerHTML=`<div class="empty" style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius)"><div class="ei">❌</div><p>Chassis "<strong>${v}</strong>" not found</p></div>`;
+    el.innerHTML=`<div class="empty" style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius)"><div class="ei">❌</div><p>Chassis "<strong>${v}</strong>" not found in records</p></div>`;
   }
 }
 
@@ -569,7 +600,7 @@ function globalSearchFn() {
     <div class="car-card"><div class="car-img" style="background:${BGs[i%BGs.length]}">🚗<div class="car-img-badge">${c.location}</div></div>
       <div class="car-body"><div class="car-make">${c.addedBy}</div><div class="car-model">${c.model}</div>
         <div style="margin-bottom:8px">${c.year>0?`<span class="car-spec">📅 ${c.year}</span>`:''}<span class="car-spec">🎨 ${c.color}</span></div>
-        <div class="car-footer"><div class="car-price">${c.price>0?'¥'+c.price.toLocaleString():'N/A'}</div>
+        <div class="car-footer"><div class="car-price">${c.price>0?'฿'+c.price.toLocaleString():'N/A'}</div>
           <button class="btn btn-primary btn-sm" onclick="goLookup('${c.chassis}')">View</button></div>
       </div></div>`).join('')||'<div class="empty" style="grid-column:1/-1"><div class="ei">🔍</div><p>No results</p></div>';
 }
