@@ -428,7 +428,7 @@ async function doLogin() {
   } catch(e) {
     console.error('Login error:', e);
     err.style.display = 'block';
-    err.textContent = '❌ Sheet ဖတ်မရဘူး — ပြန်ကြိုးစားပါ';
+    err.textContent = '❌ Error: ' + e.message;
   }
   document.getElementById('loadingOverlay').style.display = 'none';
   document.querySelector('.main').innerHTML = `
