@@ -359,30 +359,20 @@ async function doLogin() {
   err.style.display = 'none';
 
   try {
-    const res = await fetch(WEBHOOK, {
-      method: 'POST',
-      body: JSON.stringify({action: 'verifyLogin', password: pw}),
-      headers: {'Content-Type': 'application/json'},
-      redirect: 'follow'
+    // Members sheet ကနေ တိုက်ရိုက် စစ် (CORS ပြဿနာမရှိ)
+    const members = await fetchSheet('Members');
+    const now = new Date();
+
+    const matched = members.find(m => {
+      // Case-insensitive password lookup
+      const storedPw = String(
+        m['PASSWORD'] || m['Password'] || m['password'] ||
+        Object.values(m)[5] || ''
+      ).trim();
+      return storedPw === pw;
     });
-    const data = await res.json();
 
-    if (data.status === 'ok') {
-      // Clear brute force
-      setLoginAttempts({count: 0, lockUntil: 0});
-
-      SESSION = {
-        token:      data.token,
-        userId:     data.userId,
-        username:   data.username,
-        package:    data.package,
-        expireDate: data.expireDate,
-        loginTime:  Date.now()
-      };
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(SESSION));
-      showApp();
-    } else {
-      // Record failed attempt
+    if (!matched) {
       const t = getLoginAttempts();
       t.count = (t.count || 0) + 1;
       if (t.count >= MAX_LOGIN_TRIES) {
@@ -392,62 +382,53 @@ async function doLogin() {
         brute.style.display = 'block';
         brute.textContent = `⚠️ Admin ကို ဆက်သွယ်ပါ: @JapanAuctionCar_Bot`;
       } else {
-        const msg = data.message === 'expired'
-          ? '⏰ Membership ကုန်ဆုံးပြီ — /renew လုပ်ပါ'
-          : `❌ Password မှားတယ် (${MAX_LOGIN_TRIES - t.count} ကြိမ် ကျန်)`;
-        err.textContent = msg;
+        err.textContent = `❌ Password မှားတယ် (${MAX_LOGIN_TRIES - t.count} ကြိမ် ကျန်)`;
       }
       err.style.display = 'block';
       setLoginAttempts(t);
       document.getElementById('loginPw').style.borderColor = '#EF4444';
+      btn.textContent = '🔓 Login'; btn.disabled = false;
+      return;
     }
+
+    // Expiry check — gviz returns formatted date string like "08/04/2026"
+    const vals = Object.values(matched);
+    const expireRaw = String(
+      matched['EXPIREDDATE'] || matched['ExpireDate'] || matched['expiredate'] || vals[3] || ''
+    );
+    // Parse dd/mm/yyyy or dd/MM/yyyy
+    let expireDate;
+    const ep = expireRaw.split('/');
+    if (ep.length === 3) {
+      expireDate = new Date(parseInt(ep[2]), parseInt(ep[1])-1, parseInt(ep[0]));
+    } else {
+      expireDate = new Date(expireRaw);
+    }
+
+    if (isNaN(expireDate) || expireDate < now) {
+      err.textContent = '⏰ Membership ကုန်ဆုံးပြီ — Bot မှ /renew လုပ်ပါ';
+      err.style.display = 'block';
+      btn.textContent = '🔓 Login'; btn.disabled = false;
+      return;
+    }
+
+    // Login အောင်မြင်
+    setLoginAttempts({count: 0, lockUntil: 0});
+    SESSION = {
+      token:      'sess_' + Date.now(),
+      userId:     String(matched['UserID']   || matched['USERID']   || vals[0] || ''),
+      username:   String(matched['USERNAME'] || matched['Username'] || vals[1] || ''),
+      package:    String(matched['PACKAGE']  || matched['Package']  || vals[6] || 'CH'),
+      expireDate: expireRaw,
+      loginTime:  Date.now()
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(SESSION));
+    showApp();
   } catch(e) {
+    console.error('Login error:', e);
     err.style.display = 'block';
-    err.textContent = '❌ Connection error — ပြန်ကြိုးစားပါ';
+    err.textContent = '❌ Sheet ဖတ်မရဘူး — ပြန်ကြိုးစားပါ';
   }
-
-  btn.textContent = '🔓 Login';
-  btn.disabled = false;
-}
-
-// ── Session Check ─────────────────────────────────────────
-function checkSession() {
-  try {
-    const stored = sessionStorage.getItem(SESSION_KEY);
-    if (!stored) return false;
-    const s = JSON.parse(stored);
-    // 24hr timeout
-    if (Date.now() - s.loginTime > SESSION_HOURS * 3600 * 1000) {
-      sessionStorage.removeItem(SESSION_KEY);
-      return false;
-    }
-    SESSION = s;
-    return true;
-  } catch(e) { return false; }
-}
-
-// ── Show App (after login) ────────────────────────────────
-function showApp() {
-  document.getElementById('loginOverlay').style.display = 'none';
-
-  // CH_ONLY → block web tabs
-  if (SESSION && SESSION.package === 'CH') {
-    showChannelOnlyBlock();
-    return;
-  }
-
-  // Show full app
-  document.getElementById('loadingOverlay').style.display = 'flex';
-  document.getElementById('loadingOverlay').innerHTML =
-    '<div class="spinner"></div><div style="font-size:14px;color:var(--text-muted);font-weight:500">Loading from Google Sheets...</div>';
-
-  // Show username in sidebar
-  updateUserBar();
-  init();
-}
-
-// ── CH_ONLY Block ─────────────────────────────────────────
-function showChannelOnlyBlock() {
   document.getElementById('loadingOverlay').style.display = 'none';
   document.querySelector('.main').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;height:100vh;padding:24px">
