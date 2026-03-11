@@ -542,23 +542,22 @@ const COLORS = ['#0057FF','#00B37E','#F59E0B','#8B5CF6','#EF4444','#0EA5E9','#EC
 const BGs = ['linear-gradient(135deg,#EEF3FF,#E0E8FF)','linear-gradient(135deg,#E6FBF5,#C8F3E8)','linear-gradient(135deg,#FFF4E6,#FFE4C8)','linear-gradient(135deg,#F5F0FF,#E6D9FF)','linear-gradient(135deg,#FFF0F0,#FFD6D6)'];
 
 async function fetchSheet(tab) {
+  // Members sheet — gviz (formatted dates လိုတယ်)
+  // Sheet1 — CSV format သုံး (long URL truncate မဖြစ်အောင်)
+  if (tab === 'Sheet1') {
+    return fetchSheetCSV(tab);
+  }
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tab)}&_=${Date.now()}`;
   const res = await fetch(url);
   const text = await res.text();
-  // gviz wraps response: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
-  // Need to extract inner JSON from setResponse({...})
   const startMarker = 'setResponse(';
   const startIdx = text.indexOf(startMarker);
   let jsonStr;
   if (startIdx !== -1) {
-    // Extract from first { after setResponse( to matching closing })
     const jsonStart = text.indexOf('{', startIdx);
-    // Remove trailing ); to get clean JSON
     const raw = text.substring(jsonStart).trim();
-    // Remove last ); 
     jsonStr = raw.endsWith(');') ? raw.slice(0, -2) : raw.endsWith(')') ? raw.slice(0,-1) : raw;
   } else {
-    // Fallback
     jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}')+1);
   }
   const json = JSON.parse(jsonStr);
@@ -575,6 +574,39 @@ async function fetchSheet(tab) {
     });
     return o;
   }).filter(r => Object.values(r).some(v => v !== '' && v !== null));
+}
+
+async function fetchSheetCSV(tab) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(tab)}&_=${Date.now()}`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  // Parse CSV properly (handle quoted fields with commas)
+  function parseCSVLine(line) {
+    const result = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === ',' && !inQ) {
+        result.push(cur.trim()); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+  const headers = parseCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = parseCSVLine(line);
+    const o = {};
+    headers.forEach((h, i) => { o[h] = vals[i] || ''; });
+    return o;
+  }).filter(r => Object.values(r).some(v => v !== ''));
 }
 
 // Convert Google Drive share URL → direct embed URL
