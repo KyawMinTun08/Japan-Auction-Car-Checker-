@@ -188,7 +188,11 @@ select:focus{border-color:var(--primary);}
 
 <div class="main">
   <header class="header">
-    <div class="header-title" id="headerTitle">Dashboard <span>Overview</span></div>
+    <div style="display:flex;align-items:center;gap:10px;flex:1">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--primary);white-space:nowrap">🚗 Japan Auction Car Checker</div>
+      <div style="color:var(--border)">|</div>
+      <div class="header-title" id="headerTitle">Dashboard <span>Overview</span></div>
+    </div>
     <div class="search-box">
       <span style="color:var(--gray3)">🔍</span>
       <input type="text" placeholder="Search model, chassis, color..." id="globalSearch" oninput="globalSearchFn()">
@@ -313,6 +317,7 @@ select:focus{border-color:var(--primary);}
 const SHEET_ID   = '1ZRw9xUS2pqZe5rJdmBtsX6yS7hAc65BHDO6K3zG1mpY';
 const WEBHOOK    = 'https://script.google.com/macros/s/AKfycbx0VnduD1ARzD22RerXiH68H1capsP79DnOPauS6qHkV8K7RMwcf0_EREx5XFmE3UwT/exec';
 const SESSION_KEY = 'jan_session';
+const SESSION_VER = 'v3'; // ← version ပြောင်းရင် ဟောင်း session အားလုံး clear
 const MAX_LOGIN_TRIES = 5;
 const LOCKOUT_MINUTES = 15;
 const SESSION_HOURS   = 24;
@@ -416,6 +421,7 @@ async function doLogin() {
     // Login အောင်မြင်
     setLoginAttempts({count: 0, lockUntil: 0});
     SESSION = {
+      ver:        SESSION_VER,
       token:      'sess_' + Date.now(),
       userId:     String(matched['UserID']   || matched['USERID']   || vals[0] || ''),
       username:   String(matched['USERNAME'] || matched['Username'] || vals[1] || ''),
@@ -441,6 +447,11 @@ function checkSession() {
     if (!s) return false;
     const parsed = JSON.parse(s);
     if (!parsed || !parsed.token) return false;
+    // Version မတူရင် ဟောင်း session ပယ်ဖျက်
+    if (parsed.ver !== SESSION_VER) {
+      sessionStorage.removeItem(SESSION_KEY);
+      return false;
+    }
     // 24hr expiry check
     if (Date.now() - parsed.loginTime > SESSION_HOURS * 3600 * 1000) {
       sessionStorage.removeItem(SESSION_KEY);
