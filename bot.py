@@ -248,6 +248,7 @@ PRICE_HISTORY  = []
 pending_photo  = {}
 pending_payment = {}   # user_id -> {package, months, amount, username, name}
 pending_updateid = {}  # user_id -> {target_username, old_id, new_id}
+pending_edit     = {}  # user_id -> {chassis, field}  (field: price/color/model)
 warned_3days   = set()
 rate_limit     = {}    # user_id -> [datetime, ...]
 
@@ -648,7 +649,10 @@ async def find_car(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history = get_price_history(car['chassis'])
         txt     = format_car_info(car, history[-1]['price'] if history else None, history or None)
         # ဈေးထည့် button — Admin only
-        kb = [[InlineKeyboardButton("💰 ဈေးထည့်", callback_data=f"addprice_{car['chassis']}")]] if is_admin else []
+        kb = [[
+            InlineKeyboardButton("💰 ဈေးထည့်",  callback_data=f"addprice_{car['chassis']}"),
+            InlineKeyboardButton("✏️ ပြင်ရန်",   callback_data=f"editcar_{car['chassis']}"),
+        ]] if is_admin else []
         await update.message.reply_text(txt, parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(kb) if kb else None)
     else:
@@ -746,7 +750,10 @@ async def price_history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pct    = (change / history[0]['price']) * 100
         txt += f"\n📊 ပြောင်းလဲမှု: *{change:+,}* ({pct:+.1f}%)"
     # ဈေးထည့် button — Admin only
-    kb = [[InlineKeyboardButton("💰 ဈေးအသစ်ထည့်", callback_data=f"addprice_{chassis}")]] if is_admin else []
+    kb = [[
+        InlineKeyboardButton("💰 ဈေးအသစ်ထည့်", callback_data=f"addprice_{chassis}"),
+        InlineKeyboardButton("✏️ ပြင်ရန်",      callback_data=f"editcar_{chassis}"),
+    ]] if is_admin else []
     await update.message.reply_text(txt, parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(kb) if kb else None)
 
@@ -1330,6 +1337,61 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text    = update.message.text.strip()
 
+    # ── Edit Car Field ──
+    if user_id in pending_edit:
+        edit = pending_edit.pop(user_id)
+        chassis = edit["chassis"]
+        field   = edit["field"]
+        car     = find_by_chassis(chassis)
+        if not car:
+            await update.message.reply_text(f"❌ `{chassis}` မတွေ့ပါ", parse_mode='Markdown')
+            return
+
+        # Validate + parse
+        if field == "price":
+            try:
+                new_val = int(text.replace(",","").replace(" ",""))
+                display = f"฿{new_val:,}"
+            except:
+                await update.message.reply_text("❌ ဂဏန်းသက်သက်သာ ရိုက်ပါ
+ဥပမာ: `150000`", parse_mode='Markdown')
+                pending_edit[user_id] = edit  # put back
+                return
+        elif field == "color":
+            new_val = text.upper().strip()
+            display = new_val
+        elif field == "model":
+            new_val = text.upper().strip()
+            display = new_val
+        else:
+            return
+
+        # Update in-memory CARS list
+        for c in CARS:
+            if c.get("chassis","").upper() == chassis.upper():
+                c[field] = new_val
+                break
+
+        # Send update to Apps Script webhook
+        field_map = {"price": "price", "color": "color", "model": "model"}
+        if SHEET_WEBHOOK:
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(SHEET_WEBHOOK, json={
+                        "action": "updateCar",
+                        "chassis": chassis,
+                        "field": field_map[field],
+                        "value": str(new_val),
+                    }, timeout=10, follow_redirects=True)
+            except Exception as e:
+                logger.error(f"updateCar webhook: {e}")
+
+        await update.message.reply_text(
+            f"✅ *{chassis}* ပြင်ပြီး\n"
+            f"📝 {field.upper()}: *{display}*",
+            parse_mode='Markdown')
+        return
+
     if user_id in pending_photo:
         data = pending_photo[user_id]
         if data.get('price') is None and re.match(r'^[\d,]+$', text.replace(' ','')):
@@ -1398,6 +1460,48 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ *Cancel လုပ်ပြီး*\n\nChassis ကိုယ်တိုင် ထည့်ပါ:\n"
             "`/price [chassis] [ဈေး]`\nဥပမာ: `/price GP1-1049821 58000`",
             parse_mode='Markdown')
+
+    # ── Edit Car button ── (Admin only)
+    elif data.startswith("editcar_"):
+        if query.from_user.id not in ADMIN_IDS:
+            await query.answer("❌ Admin only", show_alert=True)
+            return
+        chassis = data.replace("editcar_","")
+        car = find_by_chassis(chassis)
+        if not car:
+            await query.answer("❌ Chassis မတွေ့ပါ", show_alert=True)
+            return
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"💰 ဈေး ({car.get('price','?')})",   callback_data=f"editfield_{chassis}_price")],
+            [InlineKeyboardButton(f"🎨 Color ({car.get('color','-')})",  callback_data=f"editfield_{chassis}_color")],
+            [InlineKeyboardButton(f"🚗 Model ({car.get('model','-')})",  callback_data=f"editfield_{chassis}_model")],
+            [InlineKeyboardButton("❌ Cancel",                           callback_data=f"editfield_{chassis}_cancel")],
+        ])
+        await query.message.reply_text(
+            f"✏️ *{chassis}* — ဘာပြင်မလဲ?",
+            parse_mode='Markdown', reply_markup=kb)
+
+    elif data.startswith("editfield_"):
+        if query.from_user.id not in ADMIN_IDS:
+            await query.answer("❌ Admin only", show_alert=True)
+            return
+        parts   = data.split("_", 2)  # editfield_CHASSIS_field
+        chassis = parts[1]
+        field   = parts[2]
+        if field == "cancel":
+            pending_edit.pop(query.from_user.id, None)
+            await query.message.reply_text("❌ Cancel လုပ်ပြီး")
+            return
+        pending_edit[query.from_user.id] = {"chassis": chassis, "field": field}
+        prompts = {
+            "price": f"💰 `{chassis}` ဈေးအသစ် ရိုက်ထည့်ပါ:
+ဥပမာ: `150000`",
+            "color": f"🎨 `{chassis}` Color အသစ် ရိုက်ထည့်ပါ:
+ဥပမာ: `PEARL WHITE`",
+            "model": f"🚗 `{chassis}` Model အသစ် ရိုက်ထည့်ပါ:
+ဥပမာ: `HONDA FIT`",
+        }
+        await query.message.reply_text(prompts[field], parse_mode='Markdown')
 
     # ── Add Price button ──
     elif data.startswith("addprice_"):
