@@ -1362,15 +1362,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "image_url": image_url,
         }
         warn = f"\n⚠️ မသေချာ: *{', '.join(missing)}*\n" if missing else ""
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ မှန်တယ် Save",    callback_data=f"cs_{user_id}"),
-            InlineKeyboardButton("❌ မှားတယ် Cancel", callback_data=f"cc_{user_id}"),
-        ]])
+        # Build keyboard: fill-missing buttons + Save/Cancel
+        field_labels = {"Model":"🚗 Model","Color":"🎨 Color","Year":"📅 Year"}
+        fill_btns = [InlineKeyboardButton(f"✏️ {field_labels.get(f,f)} ဖြည့်",
+                     callback_data=f"fill_{user_id}_{f.lower()}") for f in missing if f != "Chassis"]
+        rows = []
+        if fill_btns:
+            rows.append(fill_btns)
+        rows.append([
+            InlineKeyboardButton("✅ Save",    callback_data=f"cs_{user_id}"),
+            InlineKeyboardButton("❌ Cancel",  callback_data=f"cc_{user_id}"),
+        ])
+        kb = InlineKeyboardMarkup(rows)
         await update.message.reply_text(
             f"⚠️ *စစ်ဆေးပါ — မှန်ကန်ပါသလား?*\n\n"
             f"🚗 *{final_model}* ({ys(final_year)})\n"
             f"🔑 `{final_chassis}`\n🎨 {final_color}\n📍 {car_loc}\n💰 ฿{price:,}\n"
-            f"{warn}\n✅ မှန်ရင် *Save* နှိပ်ပါ\n❌ မှားရင် *Cancel* နှိပ်ပြီး `/price [chassis] [ဈေး]` သုံးပါ",
+            f"{warn}",
             parse_mode='Markdown', reply_markup=kb)
     elif final_chassis:
         pending_photo[user_id] = {
@@ -1423,10 +1431,54 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── Edit Car Field ──
     if user_id in pending_edit:
-        edit = pending_edit.pop(user_id)
+        edit    = pending_edit.pop(user_id)
         chassis = edit["chassis"]
         field   = edit["field"]
-        car     = find_by_chassis(chassis)
+
+        # ── Photo missing-field fill mode ──
+        if chassis == "__photo__":
+            photo_uid = edit.get("photo_uid", user_id)
+            if photo_uid not in pending_photo:
+                await update.message.reply_text("❌ Data ကုန်သွားပြီ — ပုံ ပြန်တင်ပါ")
+                return
+            pdata = pending_photo[photo_uid]
+            val   = text.strip()
+            if field == "year":
+                try:
+                    pdata["year"] = int(re.search(r"\d{4}", val).group())
+                except:
+                    await update.message.reply_text("❌ ဂဏန်းလေးလုံး ထည့်ပါ (ဥပမာ: `2013`)", parse_mode='Markdown')
+                    pending_edit[user_id] = edit; return
+            elif field == "color":
+                pdata["color"] = val.upper()
+            elif field == "model":
+                pdata["model"] = val.upper()
+            pending_photo[photo_uid] = pdata
+            # Recheck missing
+            m2 = []
+            if not pdata.get("model") or pdata["model"] == "UNKNOWN": m2.append("Model")
+            if not pdata.get("color") or pdata["color"] == "-":       m2.append("Color")
+            if not pdata.get("year"):                                   m2.append("Year")
+            field_labels = {"Model":"🚗 Model","Color":"🎨 Color","Year":"📅 Year"}
+            fill_btns = [InlineKeyboardButton(f"✏️ {field_labels.get(f,f)} ဖြည့်",
+                         callback_data=f"fill_{photo_uid}_{f.lower()}") for f in m2]
+            rows = []
+            if fill_btns: rows.append(fill_btns)
+            rows.append([
+                InlineKeyboardButton("✅ Save",   callback_data=f"cs_{photo_uid}"),
+                InlineKeyboardButton("❌ Cancel", callback_data=f"cc_{photo_uid}"),
+            ])
+            warn = f"\n⚠️ မသေချာ: *{', '.join(m2)}*\n" if m2 else ""
+            await update.message.reply_text(
+                f"⚠️ *စစ်ဆေးပါ*\n\n"
+                f"🚗 *{pdata['model']}* ({ys(pdata.get('year',0))})\n"
+                f"🔑 `{pdata['chassis']}`\n🎨 {pdata['color']}\n"
+                f"📍 {pdata.get('loc','')}\n💰 ฿{pdata['price']:,}\n{warn}",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(rows))
+            return
+
+        car = find_by_chassis(chassis)
         if not car:
             await update.message.reply_text(f"❌ `{chassis}` မတွေ့ပါ", parse_mode='Markdown')
             return
@@ -1582,6 +1634,24 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "model": f"🚗 `{chassis}` Model အသစ် ရိုက်ထည့်ပါ:\nဥပမာ: `HONDA FIT`",
         }
         await query.message.reply_text(prompts[field], parse_mode='Markdown')
+
+    # ── Fill Missing Field (from photo confirm) ──
+    elif data.startswith("fill_"):
+        # format: fill_userid_field  (field = model/color/year)
+        parts  = data.split("_", 2)
+        uid    = int(parts[1])
+        field  = parts[2]  # "model", "color", "year"
+        if uid not in pending_photo:
+            await query.answer("❌ Data ကုန်သွားပြီ", show_alert=True)
+            return
+        pending_edit[query.from_user.id] = {"chassis": "__photo__", "field": field, "photo_uid": uid}
+        prompts = {
+            "model": "🚗 Model ထည့်ပါ:\nဥပမာ: `CROWN`, `AD VAN`",
+            "color": "🎨 Color ထည့်ပါ:\nဥပမာ: `WHITE`, `PEARL WHITE`",
+            "year":  "📅 Year ထည့်ပါ:\nဥပမာ: `2013`",
+        }
+        await query.message.reply_text(prompts.get(field,"ထည့်ပါ:"), parse_mode='Markdown')
+        await query.answer()
 
     # ── Add Price button ──
     elif data.startswith("addprice_"):
