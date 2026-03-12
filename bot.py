@@ -43,6 +43,10 @@ PLAN_WEB_2M = int(os.environ.get('PLAN_WEB_2M', '40000'))
 PLAN_WEB_3M = int(os.environ.get('PLAN_WEB_3M', '45000'))
 PAYMENT_INFO = os.environ.get('PAYMENT_INFO', 'KPay / Wave: ဆက်သွယ်ရန် @' + ADMIN_USERNAME)
 
+# ── Promo Codes: "CODE:days:maxuses,CODE2:days:maxuses" ──
+# Example: TIKTOK30:30:40,FRIEND10:10:20
+PROMO_CODES_RAW = os.environ.get('PROMO_CODES', '')
+
 LOC_MAESOT = "MaeSot Freezone"
 LOC_KLANG9 = "Klang9 Freezone"
 
@@ -250,6 +254,7 @@ pending_payment = {}   # user_id -> {package, months, amount, username, name}
 pending_updateid = {}  # user_id -> {target_username, old_id, new_id}
 pending_edit     = {}  # user_id -> {chassis, field}  (field: price/color/model)
 warned_3days   = set()
+promo_used     = {}   # code -> set of user_ids who already used it
 rate_limit     = {}    # user_id -> [datetime, ...]
 
 # ── Rate Limiting ──────────────────────────────────────
@@ -1946,6 +1951,91 @@ async def kick_member_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
+# ── Promo Code Helper ────────────────────────────────
+def parse_promo_codes() -> dict:
+    """Returns {CODE: {days, max_uses}} from env var"""
+    codes = {}
+    if not PROMO_CODES_RAW:
+        return codes
+    for entry in PROMO_CODES_RAW.split(','):
+        parts = entry.strip().split(':')
+        if len(parts) >= 2:
+            code     = parts[0].strip().upper()
+            days     = int(parts[1]) if parts[1].isdigit() else 30
+            max_uses = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 40
+            codes[code] = {"days": days, "max_uses": max_uses}
+    return codes
+
+# ── /redeem command (Sheet-backed) ───────────────────
+async def redeem_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user    = update.effective_user
+    user_id = user.id
+
+    if not context.args:
+        await update.message.reply_text(
+            "🎁 *Promo Code သုံးရန်*\n\n"
+            "`/redeem CODE`\n"
+            "ဥပမာ: `/redeem TIKTOK30`",
+            parse_mode='Markdown')
+        return
+
+    code     = context.args[0].strip().upper()
+    username = user.username or user.first_name or str(user_id)
+
+    await update.message.reply_text("🔍 Code စစ်ဆေးနေတယ်... ⏳")
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp   = await client.post(SHEET_WEBHOOK, json={
+                "action": "redeemPromo",
+                "code":   code,
+                "userId": str(user_id),
+            }, timeout=15)
+        result = resp.json()
+    except Exception as e:
+        logger.error(f"redeemPromo: {e}")
+        await update.message.reply_text("❌ Server error — ခဏကြိုးစားပါ")
+        return
+
+    status = result.get("status")
+
+    if status == "error":
+        msg_map = {
+            "invalid_code":  "❌ *Code မမှန်ကန်ပါ*\n\nAdmin ထံမှ မှန်ကန်သော Code ယူပါ",
+            "already_used":  "❌ *Code ကို တစ်ကြိမ်သာ သုံးနိုင်ပါသည်*\n\nဤ Code ကို သင် ရှိပြီးသား သုံးထားပါသည်",
+            "max_reached":   f"❌ *Code ကုန်ဆုံးပြီ*\n\n{result.get('used',0)}/{result.get('max',0)} ဦး သုံးပြီးပါပြီ",
+            "no_sheet":      "❌ System error — Admin ကို ဆက်သွယ်ပါ",
+        }
+        msg = msg_map.get(result.get("msg",""), "❌ Code မမှန်ကန်ပါ")
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return
+
+    # ✅ Success
+    days       = result.get("days", 30)
+    used       = result.get("used", 0)
+    max_uses   = result.get("max", 40)
+    remaining  = max_uses - used
+
+    password   = generate_password()
+    await save_member_to_sheet(str(user_id), username, days, password, "CH")
+    invite_url = await create_invite_link(context, days)
+    await send_approval_dm(context, user_id, days // 30, password, invite_url)
+
+    await update.message.reply_text(
+        f"🎉 *Promo Code အောင်မြင်!*\n\n"
+        f"📱 Channel Only Membership *{days} ရက်* ရပါပြီ\n"
+        f"🔑 Password DM ပို့ပြီ\n\n"
+        f"🙏 ကျေးဇူးတင်ပါသည်",
+        parse_mode='Markdown')
+
+    await notify_admins(context,
+        f"🎁 *Promo Redeemed!*\n\n"
+        f"👤 @{username} (ID: `{user_id}`)\n"
+        f"🏷 Code: `{code}`\n"
+        f"📅 {days} ရက်\n"
+        f"📊 သုံးပြီး: {used}/{max_uses}\n"
+        f"🔢 ကျန်: {remaining}")
+
 # ── Auto Expire Check (every 12h) ─────────────────────
 async def check_expired_members(context):
     global warned_3days
@@ -2038,6 +2128,7 @@ async def main():
     app.add_handler(CommandHandler("updateid",    updateid_cmd))
     app.add_handler(CommandHandler("backup",      backup_cmd))
     app.add_handler(CommandHandler("upgrade",     upgrade_cmd))
+    app.add_handler(CommandHandler("redeem",      redeem_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CallbackQueryHandler(button_callback))
@@ -2056,6 +2147,7 @@ async def main():
         BotCommand("web",        "🌐 Web App link ကြည့်ရန်"),
         BotCommand("renew",      "🔄 Membership သက်တမ်းတိုး"),
         BotCommand("mypassword", "🔑 Password ပြန်ယူရန်"),
+        BotCommand("redeem",     "🎁 Promo Code သုံးရန်"),
     ]
     # Admin တွေ မြင်မည့် commands (member + admin)
     admin_commands = member_commands + [
