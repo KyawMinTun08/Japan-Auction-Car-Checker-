@@ -662,7 +662,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await update.message.reply_text(
-        f"🚗 *JAN JAPAN Auction Bot*\n"
+        f"🚗 *Japan Auction Car Checker*\n"
         f"📍 {LOC_MAESOT} & {LOC_KLANG9}\n\n"
         + cmd_text,
         parse_mode='Markdown',
