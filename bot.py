@@ -55,8 +55,8 @@ PLAN_PRICES = {
     "WEB": {1: PLAN_WEB_1M, 2: PLAN_WEB_2M, 3: PLAN_WEB_3M},
 }
 PLAN_NAMES = {
-    "CH":  "📱 Channel Only",
-    "WEB": "📱+🌐 Channel + Web",
+    "CH":  "📱 Standard",
+    "WEB": "💎 Web Premium",
 }
 
 CHASSIS_PREFIX_MAP = {
@@ -565,24 +565,38 @@ async def create_invite_link(context, days: int) -> str:
         return ""
 
 async def send_approval_dm(context, member_id: int, months: int,
-                           password: str, invite_url: str):
+                           password: str, invite_url: str, package: str = "CH"):
     """Send approval DM and pin the password message"""
+    is_web      = package == "WEB"
     expire_date = (datetime.now() + timedelta(days=months * 30)).strftime("%d/%m/%Y")
     cust_kb = []
     if invite_url:
         cust_kb.append([InlineKeyboardButton("📢 Channel ဝင်ရန်", url=invite_url)])
-    cust_kb.append([InlineKeyboardButton("🌐 Web App ဖွင့်",
-                    url="https://kyawmintun08.github.io/Japan-Auction-Car-Checker-/")])
-    text = (
-        f"🎉 *Membership Approved!*\n\n"
-        f"📅 သက်တမ်း: *{months} လ*\n"
-        f"⏰ ကုန်ဆုံးရက်: `{expire_date}`\n\n"
-        f"🔑 *Web Password: `{password}`*\n"
-        f"🌐 Web: kyawmintun08.github.io/Japan-Auction-Car-Checker-/\n\n"
-        f"⚠️ Password ကို မည်သူ့ကိုမျှ မပေးပါနဲ့\n"
-        f"   မျှဝေပါက Membership ပိတ်သိမ်းခံရမည်\n\n"
-        f"သက်တမ်းတိုးဖို့: /renew\nကျေးဇူးတင်ပါတယ် 🙏"
-    )
+    if is_web:
+        cust_kb.append([InlineKeyboardButton("🌐 Web App ဖွင့်",
+                        url="https://kyawmintun08.github.io/Japan-Auction-Car-Checker-/")])
+
+    if is_web:
+        text = (
+            f"🎉 *Membership Approved!*\n\n"
+            f"📦 Package: 💎 Web Premium\n"
+            f"📅 သက်တမ်း: *{months} လ*\n"
+            f"⏰ ကုန်ဆုံးရက်: `{expire_date}`\n\n"
+            f"🔑 *Web Password: `{password}`*\n"
+            f"🌐 Web: kyawmintun08.github.io/Japan-Auction-Car-Checker-/\n\n"
+            f"⚠️ Password ကို မည်သူ့ကိုမျှ မပေးပါနဲ့\n"
+            f"   မျှဝေပါက Membership ပိတ်သိမ်းခံရမည်\n\n"
+            f"သက်တမ်းတိုးဖို့: /renew\nကျေးဇူးတင်ပါတယ် 🙏"
+        )
+    else:
+        text = (
+            f"🎉 *Membership Approved!*\n\n"
+            f"📦 Package: 📱 Standard\n"
+            f"📅 သက်တမ်း: *{months} လ*\n"
+            f"⏰ ကုန်ဆုံးရက်: `{expire_date}`\n\n"
+            f"📢 Channel invite link အပေါ်မှ ဝင်ပါ\n\n"
+            f"သက်တမ်းတိုးဖို့: /renew\nကျေးဇူးတင်ပါတယ် 🙏"
+        )
     try:
         msg = await context.bot.send_message(
             chat_id=member_id, text=text,
@@ -883,9 +897,9 @@ async def web_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif pkg == "CH":
         await update.message.reply_text(
             "🚫 *Web App access မရှိသေးပါ*\n\n"
-            "လက်ရှိ Package: 📱 Channel Only\n\n"
+            "လက်ရှိ Package: 📱 Standard\n\n"
             "🌐 Web App ကြည့်ဖို့ *Channel+Web Package* သို့ Upgrade လုပ်ပါ\n"
-            "👉 /renew နှိပ်ပြီး WEB package ရွေးပါ",
+            "👉 /renew နှိပ်ပြီး 💎 Web Premium package ရွေးပါ",
             parse_mode='Markdown')
     else:
         await update.message.reply_text(
@@ -897,8 +911,8 @@ async def web_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def build_package_keyboard(user_id: int, action: str = "renew"):
     """Build package selection keyboard"""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📱 Channel Only",         callback_data=f"pkg_CH_{user_id}_{action}"),
-         InlineKeyboardButton(f"📱+🌐 Channel + Web",    callback_data=f"pkg_WEB_{user_id}_{action}")],
+        [InlineKeyboardButton(f"📱 Standard",         callback_data=f"pkg_CH_{user_id}_{action}"),
+         InlineKeyboardButton(f"💎 Web Premium",    callback_data=f"pkg_WEB_{user_id}_{action}")],
         [InlineKeyboardButton("❌ Cancel",                 callback_data=f"pkg_cancel_{user_id}")],
     ])
 
@@ -1080,7 +1094,7 @@ async def upgrade_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user.id
     await update.message.reply_text(
         "⬆️ *Package Upgrade*\n\n"
-        "📱 Channel Only → 📱+🌐 Channel + Web\n\n"
+        "📱 Standard → 💎 Web Premium\n\n"
         "Web ဝင်ခွင့် ထပ်ထည့်ချင်ရင် Package ရွေးပါ 👇",
         parse_mode='Markdown',
         reply_markup=build_package_keyboard(user_id, "upgrade"))
@@ -2062,7 +2076,7 @@ async def redeem_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     password   = generate_password()
     await save_member_to_sheet(str(user_id), username, days, password, "CH")
     invite_url = await create_invite_link(context, days)
-    await send_approval_dm(context, user_id, days // 30, password, invite_url)
+    await send_approval_dm(context, user_id, days // 30, password, invite_url, package="CH")
 
     await update.message.reply_text(
         f"🎉 *Promo Code အောင်မြင်!*\n\n"
