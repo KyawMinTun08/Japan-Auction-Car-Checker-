@@ -1180,6 +1180,94 @@ async def updateid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=kb)
 
 # ── /backup (Admin only) ──────────────────────────────
+async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if ADMIN_IDS and user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ Admin သာ သုံးနိုင်တယ်")
+        return
+    if not context.args:
+        await update.message.reply_text(
+            "📢 *Broadcast သုံးနည်း:*\n\n"
+            "အားလုံးကို ပို့:\n"
+            "`/broadcast မက်ဆေ့ပါ`\n\n"
+            "WEB member သာ ပို့:\n"
+            "`/broadcast web မက်ဆေ့ပါ`\n\n"
+            "CH member သာ ပို့:\n"
+            "`/broadcast ch မက်ဆေ့ပါ`",
+            parse_mode='Markdown')
+        return
+
+    # Package filter စစ်
+    pkg_filter = None
+    msg_parts  = context.args
+    if context.args[0].upper() in ("WEB", "CH"):
+        pkg_filter = context.args[0].upper()
+        msg_parts  = context.args[1:]
+
+    message = " ".join(msg_parts)
+    if not message:
+        await update.message.reply_text("❌ မက်ဆေ့ ရိုက်ပါ")
+        return
+
+    await update.message.reply_text("⏳ Member list ဆွဲနေတယ်...")
+
+    # Sheet မှ ACTIVE members ဆွဲ
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                SHEET_WEBHOOK,
+                params={"action": "getMembers"},
+                timeout=15,
+                follow_redirects=True
+            )
+        data = resp.json()
+        members = data.get("members", [])
+    except Exception as e:
+        logger.error(f"broadcast getMembers: {e}")
+        await update.message.reply_text("❌ Member list ဆွဲမရ")
+        return
+
+    # Filter: ACTIVE + package
+    targets = []
+    for m in members:
+        status  = str(m.get("status", "")).upper()
+        pkg     = str(m.get("package", "")).upper()
+        uid     = m.get("userId") or m.get("userID") or m.get("UserID")
+        if status != "ACTIVE":
+            continue
+        if pkg_filter and pkg != pkg_filter:
+            continue
+        if uid:
+            targets.append(str(uid))
+
+    if not targets:
+        await update.message.reply_text("❌ Member မတွေ့ဘူး")
+        return
+
+    pkg_label = f" ({pkg_filter} only)" if pkg_filter else ""
+    await update.message.reply_text(
+        f"📢 {len(targets)} ယောက်ကို ပို့မည်{pkg_label}...")
+
+    success = 0
+    failed  = 0
+    for uid in targets:
+        try:
+            await context.bot.send_message(
+                chat_id=int(uid),
+                text=f"📢 *Japan Auction Car*\n\n{message}",
+                parse_mode='Markdown')
+            success += 1
+            await asyncio.sleep(0.3)  # Rate limit
+        except Exception as e:
+            logger.error(f"broadcast {uid}: {e}")
+            failed += 1
+
+    await update.message.reply_text(
+        f"✅ *Broadcast ပြီးပြီ*\n\n"
+        f"✅ အောင်မြင်: {success} ယောက်\n"
+        f"❌ မရောက်: {failed} ယောက်",
+        parse_mode='Markdown')
+
 async def backup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if ADMIN_IDS and user_id not in ADMIN_IDS:
@@ -2338,6 +2426,7 @@ async def main():
     app.add_handler(CommandHandler("resetpass",   resetpass_cmd))
     app.add_handler(CommandHandler("updateid",    updateid_cmd))
     app.add_handler(CommandHandler("backup",      backup_cmd))
+    app.add_handler(CommandHandler("broadcast",   broadcast_cmd))
     app.add_handler(CommandHandler("upgrade",     upgrade_cmd))
     app.add_handler(CommandHandler("redeem",      redeem_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
