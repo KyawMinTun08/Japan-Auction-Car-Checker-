@@ -244,7 +244,10 @@ function _verifyAndBindDevice_(userId, deviceId, app, options) {
     return {ok: false, status: 'error', message: 'device_mismatch'};
   }
 
-  if (!readOnly) sheet.getRange(row, 3, 1, 2).setValues([[clientApp, now]]);
+  if (!readOnly) {
+    sheet.getRange(row, 3).setValue(clientApp);
+    sheet.getRange(row, 5).setValue(now);
+  }
   return {
     ok: true,
     deviceBound: true,
