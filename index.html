@@ -2237,7 +2237,7 @@ function renderMonthlyBestSeller(){
   else{currentMonth=monthsInYear[monthsInYear.length-1];}
   mbsPreferredMonthNum=null;
   sel.innerHTML=monthsInYear.map(m=>{const total=Object.values(monthly[m]).reduce((s,v)=>s+v,0);return '<option value="'+esc(m)+'"'+(m===currentMonth?' selected':'')+'>'+esc(monthLabel(m).split(' ')[0])+' ('+total+' cars)</option>';}).join('');
-  renderMonthlyBestSellerContent();renderMissingModels();renderWeeklyBreakdownControls();renderWeeklyBreakdown();
+  renderMonthlyBestSellerContent();renderMissingModels();
 }
 function mbsYearChanged(){
   const sel=document.getElementById('mbsMonth');
@@ -2667,6 +2667,7 @@ function renderPriceHistory(){
 function renderTrends(){
   renderLocationActivity();
   renderMonthlyBestSeller();
+  renderWeeklyBreakdownControls();renderWeeklyBreakdown();
   renderPriceAnalysisSetup();
   const monthly={};allCars.forEach(c=>{const d=parseDate(c.date);if(!d||d.getTime()===0)return;const k=d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0');monthly[k]=(monthly[k]||0)+1;});
   const mkeys=Object.keys(monthly).sort().slice(-12);
