@@ -2438,7 +2438,7 @@ async def get_finance_report(month: str) -> dict:
         return {"status": "error", "message": "request_failed"}
 
 
-async def create_invite_link(context, days: int, user_id: int | str | None = None) -> str:
+async def create_invite_link(context, days: int, user_id: int | None = None, name: str | None = None) -> str:
     """Create a single-use channel link that stays valid long enough to use.
 
     The old code expired links after 30 minutes (1800 seconds), which caused
@@ -2451,7 +2451,12 @@ async def create_invite_link(context, days: int, user_id: int | str | None = Non
     though our own kick_with_retry() already does ban+unban at kick time
     (Telegram's own "Removed Users" list can outlive that). A fresh
     reactivation/renewal approval otherwise hands out a link that silently
-    fails for exactly the member it was meant for.
+    fails for exactly the member it was meant for. user_id must be a real
+    Telegram numeric id -- never pass a Google Login "G_<sub>" synthetic id
+    here, use the `name` parameter for that instead (see
+    handle_channel_member_join, which reads a "G_"-prefixed invite link
+    name back off the join event to recognize a Google Login member who
+    has no Telegram id in the Members sheet at all).
     """
     if user_id is not None:
         try:
@@ -2467,7 +2472,7 @@ async def create_invite_link(context, days: int, user_id: int | str | None = Non
             chat_id=CHANNEL_ID,
             member_limit=1,
             expire_date=int(time.time() + valid_days * 86400),
-            name=f"JACC member {valid_days}d",
+            name=name or f"JACC member {valid_days}d",
         )
         return invite.invite_link
     except Exception as e:
@@ -8608,6 +8613,32 @@ async def is_valid_member(user_id: int) -> bool:
         return True  # Sheet error ဆိုရင် safe side — kick မလုပ်
 
 
+async def is_valid_google_member(member_id: str) -> bool:
+    """Same ACTIVE/PROMO10D check as is_valid_member, but keyed by a Google
+    Login member's full "G_<sub>" string id instead of a Telegram numeric
+    id. A Google Login member's row is never uid.isdigit(), so
+    is_valid_member() can never match them no matter which real Telegram
+    account they use to open their invite link -- see
+    handle_channel_member_join, which routes here only for a join made via
+    a "G_"-tagged invite link."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                SHEET_WEBHOOK,
+                json={"action": "getMembers", "serverKey": SHEET_SERVER_KEY},
+                timeout=40,
+                follow_redirects=True
+            )
+        members = resp.json().get("members", [])
+        for m in members:
+            if str(m.get("userId", "")).strip() == member_id:
+                return str(m.get("status", "")).upper() in ("ACTIVE", "PROMO10D")
+        return False
+    except Exception as e:
+        logger.error(f"is_valid_google_member check: {e}")
+        return True  # Sheet error ဆိုရင် safe side — kick မလုပ်
+
+
 # ── Channel Join Guard ────────────────────────────────
 async def handle_channel_member_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Channel ထဲ user ဝင်လာတိုင်း Members sheet နဲ့ check လုပ်မယ်"""
@@ -8627,7 +8658,20 @@ async def handle_channel_member_join(update: Update, context: ContextTypes.DEFAU
     if user_id in ADMIN_IDS:
         return
 
-    is_valid = await is_valid_member(user_id)
+    # A Google Login member has no Telegram numeric id in the Members
+    # sheet at all -- is_valid_member() can never recognize them regardless
+    # of which real Telegram account they use to open their invite link.
+    # create_invite_link() tags a Google-issued link's name with the
+    # member's own "G_<sub>" id (see website_google_channel.py), and
+    # Telegram echoes that name back on the join event, so route validation
+    # by that tag instead of the joining account's Telegram id whenever
+    # it's present.
+    invite = update.chat_member.invite_link
+    invite_name = str(getattr(invite, "name", "") or "").strip() if invite else ""
+    if invite_name.startswith("G_"):
+        is_valid = await is_valid_google_member(invite_name)
+    else:
+        is_valid = await is_valid_member(user_id)
     if not is_valid:
         kicked = await kick_with_retry(context, user_id)
         status_txt = "✅ Kicked အောင်မြင်" if kicked else "⚠️ Kick မအောင်မြင် — ကိုယ်တိုင် ဆောင်ရွက်ပါ"
@@ -8992,16 +9036,21 @@ async def main():
         web_app.router.add_get("/api/google/payment/qr/{method}", google_payment_http.payment_qr)
         logger.info("JACC Google Login payment slip, methods, and QR endpoints mounted")
 
-    # create_invite_link(context, days, user_id=None) only ever touches
-    # context.bot -- passing `app` itself (an Application, which exposes
-    # .bot the same as an Update's context does) reuses the exact same
-    # helper the /channel command calls, with no shim object needed. The
-    # user_id-unban step is skipped by simply not passing one: a Google
-    # Login member's synthetic "G_<sub>" id was never a real Telegram
-    # identity, so it can never have been banned from the channel either.
+    # create_invite_link(context, days, user_id=None, name=None) only ever
+    # touches context.bot -- passing `app` itself (an Application, which
+    # exposes .bot the same as an Update's context does) reuses the exact
+    # same helper the /channel command calls, with no shim object needed.
+    # The user_id-unban step is skipped by simply not passing one: a
+    # Google Login member's synthetic "G_<sub>" id was never a real
+    # Telegram identity, so it can never have been banned from the channel
+    # either. `name` is set to the member's own id instead, so whichever
+    # real Telegram account they use to open the link, the join event
+    # carries that id back for handle_channel_member_join to validate by
+    # (see is_valid_google_member) -- the joining account's own Telegram
+    # id is never in the Members sheet at all.
     google_channel_http = build_google_member_channel_http_service(
         sheet_webhook=SHEET_WEBHOOK,
-        create_invite_link=lambda: create_invite_link(app, 7),
+        create_invite_link=lambda member_id: create_invite_link(app, 7, name=member_id),
     )
     if google_channel_http is not None:
         web_app.router.add_options("/api/google/channel/invite", google_channel_http.options)

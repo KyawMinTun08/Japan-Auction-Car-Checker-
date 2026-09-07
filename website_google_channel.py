@@ -11,6 +11,15 @@ id in the first place -- and just hands back a fresh single-use invite
 link for the website to open directly, since this member can never
 receive a Telegram DM either.
 
+Whichever real Telegram account the member uses to open the link, that
+account's numeric id never appears anywhere in the Members sheet (only
+the "G_<sub>" row does), so legacy_bot.py's join guard cannot validate
+this join by Telegram id at all. create_invite_link is therefore called
+with the member's own id as the invite link's `name` -- Telegram echoes
+that name back on the join event, and handle_channel_member_join reads
+a "G_"-prefixed name as proof of which Google Login member this join
+belongs to, checking that member's actual status instead.
+
 Verification reuses the same verifyToken Apps Script action and G_/WEB
 checks as website_google_payment_upload.py's _verify_member, deliberately
 duplicated rather than imported: each Google Login HTTP adapter stays a
@@ -40,7 +49,7 @@ class GoogleMemberChannelHttp:
         self,
         *,
         sheet_webhook: str,
-        create_invite_link: Callable[[], Awaitable[str]],
+        create_invite_link: Callable[[str], Awaitable[str]],
     ) -> None:
         self.sheet_webhook = str(sheet_webhook or "").strip()
         self.create_invite_link = create_invite_link
@@ -158,7 +167,7 @@ class GoogleMemberChannelHttp:
             return self._json(request, {"status": "error", "code": "RATE_LIMITED"}, 429)
 
         try:
-            invite_url = str(await self.create_invite_link() or "").strip()
+            invite_url = str(await self.create_invite_link(member_id) or "").strip()
         except Exception:
             logger.exception("Google member channel invite creation failed for %s", member_id)
             invite_url = ""
@@ -170,7 +179,7 @@ class GoogleMemberChannelHttp:
 def build_google_member_channel_http_service(
     *,
     sheet_webhook: str,
-    create_invite_link: Callable[[], Awaitable[str]],
+    create_invite_link: Callable[[str], Awaitable[str]],
 ) -> GoogleMemberChannelHttp | None:
     enabled = os.environ.get("GOOGLE_LOGIN_CHANNEL_ENABLED", "1").strip().lower()
     if enabled in {"0", "false", "no", "off"}:
