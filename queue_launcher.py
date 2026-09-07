@@ -138,6 +138,14 @@ async def mypassword_cmd(update, context):
             await context.bot.send_message(chat_id=user_id, text=password)
             return
 
+        # data.get("message") tells apart unauthorized/expired/no_password/
+        # web_access_required, but the reply below collapses all of them to
+        # the same generic text -- log the real reason so a repeat of this
+        # report is diagnosable from logs, not another screenshot round-trip.
+        _legacy.logger.warning(
+            "mypassword_cmd: getPassword non-ok user=%s status=%s message=%s",
+            user_id, data.get("status"), data.get("message"),
+        )
         admin_link = (
             f"\n💬 https://t.me/{_legacy.ADMIN_USERNAME}"
             if _legacy.ADMIN_USERNAME
