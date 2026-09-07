@@ -12,6 +12,7 @@ from jdm_lookup_service import build_jdm_http_service
 from qwen_text_service import build_qwen_text_http_service
 from website_payment_upload import build_website_payment_http_service
 from website_google_payment_upload import build_google_member_payment_http_service
+from website_google_channel import build_google_member_channel_http_service
 from datetime import datetime, timedelta, timezone
 from payment_audit import (
     normalize_amount,
@@ -8990,6 +8991,22 @@ async def main():
         web_app.router.add_options("/api/google/payment/qr/{method}", google_payment_http.options)
         web_app.router.add_get("/api/google/payment/qr/{method}", google_payment_http.payment_qr)
         logger.info("JACC Google Login payment slip, methods, and QR endpoints mounted")
+
+    # create_invite_link(context, days, user_id=None) only ever touches
+    # context.bot -- passing `app` itself (an Application, which exposes
+    # .bot the same as an Update's context does) reuses the exact same
+    # helper the /channel command calls, with no shim object needed. The
+    # user_id-unban step is skipped by simply not passing one: a Google
+    # Login member's synthetic "G_<sub>" id was never a real Telegram
+    # identity, so it can never have been banned from the channel either.
+    google_channel_http = build_google_member_channel_http_service(
+        sheet_webhook=SHEET_WEBHOOK,
+        create_invite_link=lambda: create_invite_link(app, 7),
+    )
+    if google_channel_http is not None:
+        web_app.router.add_options("/api/google/channel/invite", google_channel_http.options)
+        web_app.router.add_post("/api/google/channel/invite", google_channel_http.invite)
+        logger.info("JACC Google Login channel invite endpoint mounted")
 
     runner = web.AppRunner(web_app)
     await runner.setup()
