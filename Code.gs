@@ -1165,6 +1165,23 @@ case 'getMyRequests': {
       const result = setPaymentQR_(method, fileId, adminName);
       return _json(result);
     }
+      // ── Places directory (admin-added, member-visible) ────
+      case "addPlace": {
+        var addPlaceAuth = _authorizeFinanceReport_(data.serverKey);
+        if (addPlaceAuth) return _json(addPlaceAuth);
+        return _json(addPlace(data.place || data));
+      }
+      case "removePlace": {
+        var removePlaceAuth = _authorizeFinanceReport_(data.serverKey);
+        if (removePlaceAuth) return _json(removePlaceAuth);
+        return _json(removePlace(data.placeId));
+      }
+      case "getPlaces":
+        // Public read: this is a plain business directory (name/location/
+        // phone), not sensitive member data, and the website's Locations
+        // tab needs it reachable without an admin server key.
+        return _json({status:"ok", places: getPlaces()});
+
       // ── Price Data (POST) ─────────────────────────────────
       default:
         var defaultAddCarAuth = _authorizeFinanceReport_(data.serverKey);
@@ -3596,4 +3613,78 @@ function backfillModelNames() {
     ' rows. Original values saved in "' + backupSheetName + '" tab.';
   Logger.log(summary);
   return summary;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Places directory — a standalone Name/Location/Phone
+//  directory, unrelated to the existing Brokers/Requests broker
+//  marketplace sheets. Admins add/remove entries via the bot
+//  (/addplace, /removeplace); the website's Locations tab reads
+//  them read-only through getPlaces (no server key needed, since
+//  this is plain business-directory data, not member data).
+// ═══════════════════════════════════════════════════════════
+var PLACES_SHEET = "Places";
+var PLACES_HEADERS = ["PlaceID", "Name", "Location", "Phone", "AddedBy", "AddedDate"];
+
+function _ensurePlacesSheet_() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName(PLACES_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(PLACES_SHEET);
+    sheet.appendRow(PLACES_HEADERS);
+  } else if (sheet.getLastRow() < 1) {
+    sheet.appendRow(PLACES_HEADERS);
+  }
+  return sheet;
+}
+
+function addPlace(payload) {
+  payload = payload || {};
+  var name = String(payload.name || "").trim();
+  var location = String(payload.location || "").trim();
+  var phone = String(payload.phone || "").trim();
+  if (!name || !location || !phone) {
+    return {status: "error", message: "name_location_phone_required"};
+  }
+  var addedBy = String(payload.addedBy || "").trim();
+  var sheet = _ensurePlacesSheet_();
+  var placeId = "P" + Utilities.getUuid().slice(0, 8).toUpperCase();
+  var addedDate = Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm");
+  sheet.appendRow([placeId, name, location, phone, addedBy, addedDate]);
+  return {
+    status: "ok",
+    place: {placeId: placeId, name: name, location: location, phone: phone, addedBy: addedBy, addedDate: addedDate}
+  };
+}
+
+function getPlaces() {
+  var sheet = _ensurePlacesSheet_();
+  var rows = sheet.getDataRange().getValues();
+  var places = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue;
+    places.push({
+      placeId: String(rows[i][0]),
+      name: String(rows[i][1] || ""),
+      location: String(rows[i][2] || ""),
+      phone: String(rows[i][3] || ""),
+      addedBy: String(rows[i][4] || ""),
+      addedDate: String(rows[i][5] || "")
+    });
+  }
+  return places;
+}
+
+function removePlace(placeId) {
+  var target = String(placeId || "").trim();
+  if (!target) return {status: "error", message: "place_id_required"};
+  var sheet = _ensurePlacesSheet_();
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === target) {
+      sheet.deleteRow(i + 1);
+      return {status: "ok", result: "removed"};
+    }
+  }
+  return {status: "error", message: "place_not_found"};
 }
