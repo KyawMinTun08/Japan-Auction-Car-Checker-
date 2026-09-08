@@ -8404,6 +8404,114 @@ async def googlereject_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(result_text, parse_mode='Markdown')
 
 
+# ── Places directory (admin-added, member-visible on website) ──
+# A standalone Name/Location/Phone directory -- unrelated to the existing
+# Brokers/Requests broker-marketplace sheets. Admin-only to add/remove;
+# the website's Locations tab reads getPlaces read-only for every member.
+async def addplace_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not ADMIN_IDS or user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ Admin သာ သုံးနိုင်တယ်")
+        return
+    text = " ".join(context.args)
+    parts = [p.strip() for p in text.split("|")]
+    if len(parts) != 3 or not all(parts):
+        await update.message.reply_text(
+            "❌ Format: `/addplace Name | Location | Phone`\n\n"
+            "ဥပမာ - `/addplace Bago Central | No.88 Main Road, Bago | 052200111`",
+            parse_mode='Markdown')
+        return
+    name, location, phone = parts
+    if not SHEET_WEBHOOK:
+        await update.message.reply_text("❌ System error — Admin ကို ဆက်သွယ်ပါ")
+        return
+    added_by = str(getattr(update.effective_user, "username", "") or user_id).strip()
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.post(
+                SHEET_WEBHOOK,
+                json={
+                    "action": "addPlace",
+                    "place": {"name": name, "location": location, "phone": phone, "addedBy": added_by},
+                    "serverKey": SHEET_SERVER_KEY,
+                },
+                timeout=25,
+            )
+        data = response.json()
+        if data.get("status") == "ok":
+            place = data.get("place", {}) or {}
+            await update.message.reply_text(
+                f"✅ *Place ထည့်ပြီးပါပြီ*\n\n"
+                f"🆔 `{place.get('placeId', '')}`\n"
+                f"🏢 {name}\n"
+                f"📍 {location}\n"
+                f"📞 {phone}",
+                parse_mode='Markdown')
+        else:
+            await update.message.reply_text(
+                f"❌ Place ထည့်၍မရပါ — `{data.get('message', 'error')}`", parse_mode='Markdown')
+    except Exception as exc:
+        logger.error("addplace_cmd: %s", exc)
+        await update.message.reply_text("❌ Error — Admin ကို ဆက်သွယ်ပါ")
+
+
+async def places_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not ADMIN_IDS or user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ Admin သာ သုံးနိုင်တယ်")
+        return
+    if not SHEET_WEBHOOK:
+        await update.message.reply_text("❌ System error — Admin ကို ဆက်သွယ်ပါ")
+        return
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.post(SHEET_WEBHOOK, json={"action": "getPlaces"}, timeout=25)
+        data = response.json()
+        places = data.get("places", []) if isinstance(data, dict) else []
+        if not places:
+            await update.message.reply_text("📭 Place မရှိသေးပါ — `/addplace` နဲ့ ထည့်ပါ", parse_mode='Markdown')
+            return
+        lines = ["📍 *JACC Places*\n"]
+        for p in places:
+            lines.append(
+                f"🆔 `{p.get('placeId', '')}`\n🏢 {p.get('name', '')}\n📍 {p.get('location', '')}\n📞 {p.get('phone', '')}\n"
+            )
+        await update.message.reply_text("\n".join(lines), parse_mode='Markdown')
+    except Exception as exc:
+        logger.error("places_cmd: %s", exc)
+        await update.message.reply_text("❌ Error — Admin ကို ဆက်သွယ်ပါ")
+
+
+async def removeplace_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not ADMIN_IDS or user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ Admin သာ သုံးနိုင်တယ်")
+        return
+    if not context.args:
+        await update.message.reply_text("❌ Format: `/removeplace <PlaceID>`", parse_mode='Markdown')
+        return
+    place_id = context.args[0].strip()
+    if not SHEET_WEBHOOK:
+        await update.message.reply_text("❌ System error — Admin ကို ဆက်သွယ်ပါ")
+        return
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.post(
+                SHEET_WEBHOOK,
+                json={"action": "removePlace", "placeId": place_id, "serverKey": SHEET_SERVER_KEY},
+                timeout=25,
+            )
+        data = response.json()
+        if data.get("status") == "ok":
+            await update.message.reply_text(f"✅ `{place_id}` ကို ဖျက်ပြီးပါပြီ", parse_mode='Markdown')
+        else:
+            await update.message.reply_text(
+                f"❌ Place ဖျက်၍မရပါ — `{data.get('message', 'error')}`", parse_mode='Markdown')
+    except Exception as exc:
+        logger.error("removeplace_cmd: %s", exc)
+        await update.message.reply_text("❌ Error — Admin ကို ဆက်သွယ်ပါ")
+
+
 # ── JACC Google Login admin approval buttons ───────────────
 # Separate CallbackQueryHandlers (registered with their own patterns ahead
 # of the generic button_callback in main()) rather than new branches inside
@@ -8868,6 +8976,9 @@ async def main():
     app.add_handler(CommandHandler("refunddone",     refunddone_cmd))
     app.add_handler(CommandHandler("googleapprove",  googleapprove_cmd))
     app.add_handler(CommandHandler("googlereject",   googlereject_cmd))
+    app.add_handler(CommandHandler("addplace",       addplace_cmd))
+    app.add_handler(CommandHandler("places",         places_cmd))
+    app.add_handler(CommandHandler("removeplace",    removeplace_cmd))
     app.add_handler(CommandHandler("chatlog",        chatlog_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
