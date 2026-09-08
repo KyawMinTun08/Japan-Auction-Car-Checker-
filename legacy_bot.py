@@ -22,7 +22,7 @@ from payment_audit import (
 )
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram import BotCommandScopeAllPrivateChats, BotCommandScopeChat
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ChatMemberHandler, filters, ContextTypes
+from telegram.ext import Application, AIORateLimiter, CommandHandler, MessageHandler, CallbackQueryHandler, ChatMemberHandler, filters, ContextTypes
 from telegram.helpers import escape_markdown
 
 try:
@@ -8935,7 +8935,16 @@ async def main():
     async with httpx.AsyncClient() as client:
         await client.post(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook",
                           params={"drop_pending_updates":True})
-    app = Application.builder().token(TOKEN).build()
+    # Auto-throttles outgoing Bot API calls (per-chat and bot-wide) and
+    # transparently waits out Telegram's own RetryAfter cooldown instead of
+    # raising it into handle_photo mid-flow. Bulk auction-list photo
+    # uploads (each photo triggers several reply_text/send_photo calls in
+    # quick succession) used to trip Telegram's flood control outright --
+    # telegram.error.RetryAfter with no error handler registered, so every
+    # message the bot tried to send during the ~8 minute cooldown was
+    # silently dropped and the admin saw the bot go completely unresponsive
+    # mid-upload.
+    app = Application.builder().token(TOKEN).rate_limiter(AIORateLimiter()).build()
     app.add_handler(CommandHandler("start",       start))
     app.add_handler(CommandHandler("newmember",   newmember_cmd))
     app.add_handler(CommandHandler("find",        find_car))
